@@ -6,8 +6,8 @@ Sistema web para gestão financeira de múltiplos clientes, desenvolvido com Nex
 
 - Cada **cliente** cadastrado (tabela `equipe`) tem seu próprio financeiro isolado: plano de contas, contas a pagar/receber e balancete.
 - Três papéis de acesso (`Usuario.role`):
-  - **ADMIN** — opera o sistema, único papel com acesso a Configurações; cadastra usuários e clientes.
-  - **EMPRESA** — quem compra o BPO; enxerga o financeiro de todos os clientes, mas não cadastra ninguém.
+  - **ADMIN** — opera o sistema, acesso total; cadastra usuários e clientes.
+  - **PERSONALIZADO** — permissões individuais, ligadas por usuário em Configurações → Usuários (ver todos os clientes, gerenciar usuários, gerenciar equipes/clientes, editar lançamentos financeiros).
   - **CLIENTE** — usuário final; só enxerga o financeiro do(s) cliente(s) ao qual foi vinculado em Configurações → Clientes.
 
 ## Funcionalidades
