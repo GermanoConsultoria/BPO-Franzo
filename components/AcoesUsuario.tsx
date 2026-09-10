@@ -1,22 +1,26 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Key, Power, Loader2, ShieldCheck } from 'lucide-react'
+import { Key, Power, Loader2, ShieldCheck, Pencil } from 'lucide-react'
 import { toggleStatusUsuario } from '@/app/actions'
 import ModalAlterarSenha from './ModalAlterarSenha'
 import ModalPermissoesUsuario from './ModalPermissoesUsuario'
+import ModalEditarUsuario from './ModalEditarUsuario'
 
 interface Props {
   usuario: {
     id: string
     nome: string
     ativo: boolean
+    email?: string
+    cargo?: string | null
     role?: string
   }
   permissoesAtuais?: string[]
 }
 
 export default function AcoesUsuario({ usuario, permissoesAtuais = [] }: Props) {
+  const [modalEditar, setModalEditar] = useState(false)
   const [modalSenha, setModalSenha] = useState(false)
   const [modalPermissoes, setModalPermissoes] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -30,6 +34,15 @@ export default function AcoesUsuario({ usuario, permissoesAtuais = [] }: Props) 
   return (
     <>
       <div className="flex justify-end items-center gap-2">
+        {/* EDITAR USUÁRIO */}
+        <button
+          onClick={() => setModalEditar(true)}
+          className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors border border-transparent hover:border-blue-500/20"
+          title="Editar Usuário"
+        >
+          <Pencil size={18} />
+        </button>
+
         {/* PERMISSÕES (só para papel Personalizado) */}
         {usuario.role === 'PERSONALIZADO' && (
           <button
@@ -64,6 +77,13 @@ export default function AcoesUsuario({ usuario, permissoesAtuais = [] }: Props) 
           {isPending ? <Loader2 size={18} className="animate-spin" /> : <Power size={18} />}
         </button>
       </div>
+
+      <ModalEditarUsuario
+        isOpen={modalEditar}
+        onClose={() => setModalEditar(false)}
+        usuario={usuario}
+        permissoesAtuais={permissoesAtuais}
+      />
 
       <ModalAlterarSenha
         isOpen={modalSenha}

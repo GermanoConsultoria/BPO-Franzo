@@ -18,6 +18,12 @@ const schemaCriarUsuario = z.object({
   cargo: z.string().max(100).optional(),
 })
 
+const schemaEditarUsuario = z.object({
+  nome: z.string().min(2, 'Nome deve ter ao menos 2 caracteres.').max(100),
+  email: z.string().email('E-mail inválido.'),
+  cargo: z.string().max(100).optional(),
+})
+
 // Papéis de acesso do BPO: ADMIN (nós, operamos o sistema, acesso total) >
 // PERSONALIZADO (permissões individuais, ver lib/permissoes.ts) > CLIENTE
 // (usuário final, só vê o financeiro da própria equipe/cliente).
@@ -132,6 +138,56 @@ export async function criarNovoUsuario(formData: FormData) {
       data: permissoesSelecionadas.map(chave => ({ usuario_id: novoUsuario.id, chave }))
     })
   }
+
+  revalidatePath('/configuracoes/usuarios')
+  return { sucesso: true }
+}
+
+export async function atualizarUsuario(formData: FormData) {
+  const session = await auth()
+  if (!session?.user?.email) return { erro: 'Sem permissão' }
+
+  const solicitante = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  if (!solicitante || !temPermissao(solicitante, PERMISSOES.GERENCIAR_USUARIOS)) {
+    return { erro: 'Você não tem permissão para editar usuários.' }
+  }
+
+  const usuarioId = formData.get('usuarioId') as string
+  const usuarioAlvo = await prisma.usuario.findUnique({ where: { id: usuarioId } })
+  if (!usuarioAlvo) return { erro: 'Usuário não encontrado.' }
+  if (usuarioAlvo.role === 'ADMIN') return { erro: 'Não é possível editar um administrador por aqui.' }
+
+  const nome = formData.get('nome') as string
+  const email = formData.get('email') as string
+  const cargo = formData.get('cargo') as string
+  let role = formData.get('role') as string
+  if (role !== 'PERSONALIZADO' && role !== 'ADMIN') role = 'CLIENTE'
+
+  const validacao = schemaEditarUsuario.safeParse({ nome, email, cargo })
+  if (!validacao.success) {
+    return { erro: validacao.error.issues[0].message }
+  }
+
+  if (email !== usuarioAlvo.email) {
+    const existe = await prisma.usuario.findUnique({ where: { email } })
+    if (existe) return { erro: 'E-mail já cadastrado.' }
+  }
+
+  const chavesValidas = Object.values(PERMISSOES) as string[]
+  const permissoesSelecionadas = role === 'PERSONALIZADO'
+    ? formData.getAll('permissoes').filter((c): c is string => typeof c === 'string' && chavesValidas.includes(c))
+    : []
+
+  await prisma.$transaction([
+    prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { nome, email, cargo: cargo || null, role },
+    }),
+    prisma.usuarioPermissao.deleteMany({ where: { usuario_id: usuarioId } }),
+    ...(permissoesSelecionadas.length > 0
+      ? [prisma.usuarioPermissao.createMany({ data: permissoesSelecionadas.map(chave => ({ usuario_id: usuarioId, chave })) })]
+      : []),
+  ])
 
   revalidatePath('/configuracoes/usuarios')
   return { sucesso: true }
