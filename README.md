@@ -1,19 +1,21 @@
-# Flow — Gerenciador de Projetos
+# BPO — Gestão Financeira Multi-Cliente
 
-Sistema web full-stack de gerenciamento de projetos e tarefas com foco em equipes, desenvolvido com Next.js App Router, Prisma e PostgreSQL.
+Sistema web para gestão financeira de múltiplos clientes, desenvolvido com Next.js App Router, Prisma e PostgreSQL. Fork enxuto do "Flow" (gerenciador de tarefas), mantendo apenas o módulo financeiro.
+
+## Como funciona
+
+- Cada **cliente** cadastrado (tabela `equipe`) tem seu próprio financeiro isolado: plano de contas, contas a pagar/receber e balancete.
+- Três papéis de acesso (`Usuario.role`):
+  - **ADMIN** — opera o sistema, único papel com acesso a Configurações; cadastra usuários e clientes.
+  - **EMPRESA** — quem compra o BPO; enxerga o financeiro de todos os clientes, mas não cadastra ninguém.
+  - **CLIENTE** — usuário final; só enxerga o financeiro do(s) cliente(s) ao qual foi vinculado em Configurações → Clientes.
 
 ## Funcionalidades
 
-- **Quadro Kanban** — Projetos com colunas personalizáveis, drag & drop de tarefas e reordenação de etapas
-- **Sprint** — Visão semanal e mensal de tarefas com vencimento no período
-- **Minhas Tarefas** — Visualização em Quadro, Lista ou Calendário com filtros de projeto, responsável, prioridade e status
-- **Dashboards** — Métricas e gráficos de progresso por equipe
-- **Portfólio Onblox** — Acompanhamento de fases de implantação por cliente
-- **Templates de Tarefas** — Pacotes reutilizáveis com importação direta para projetos
-- **Comentários e Anexos** — Cole imagens diretamente com `Ctrl+V`, histórico completo de alterações
-- **Gestão de Equipes** — Multi-tenant com isolamento por workspace, roles (OWNER, MANAGER, MEMBER, USER)
-- **Recorrência** — Tarefas diárias, semanais e mensais com criação automática ao concluir
-- **Auditoria** — Histórico de todas as alterações em tarefas (responsável, coluna, datas, status)
+- **Balancete** — resumo financeiro do período, gráficos e contratos se encerrando
+- **Contas a Pagar / a Receber** — lançamentos com parcelamento, recorrência, anexos e histórico de pagamento
+- **Plano de Contas** — categorias de receita/despesa por cliente
+- **Gestão de Usuários e Clientes** — restrita ao papel ADMIN
 
 ## Stack
 
@@ -23,39 +25,41 @@ Sistema web full-stack de gerenciamento de projetos e tarefas com foco em equipe
 | UI | React 19 + Tailwind CSS 4 |
 | Linguagem | TypeScript |
 | ORM | Prisma 5 |
-| Banco de Dados | PostgreSQL (Neon Serverless) |
+| Banco de Dados | PostgreSQL |
 | Autenticação | NextAuth.js v5 |
 | Upload | UploadThing |
-| Drag & Drop | react-dnd |
 | Gráficos | Recharts |
 
 ## Como rodar
 
-1. **Clone e instale as dependências:**
+1. **Instale as dependências:**
    ```bash
-   git clone <url-do-repositorio>
-   cd gerenciador_de_projetos
    npm install
    ```
 
-2. **Configure as variáveis de ambiente** — crie um arquivo `.env` na raiz:
+2. **Banco de dados — use um banco PRÓPRIO deste projeto, nunca o do "Flow".**
+   Opção rápida com Docker (já configurado em `docker-compose.yml`, porta local `5433`):
+   ```bash
+   docker compose up -d
+   ```
+   Isso expõe um Postgres vazio em `postgresql://admin_bpo:senha_segura_123@localhost:5433/db_bpo`.
+
+3. **Configure o `.env`** na raiz:
    ```env
-   DATABASE_URL="sua_url_neon"
+   DATABASE_URL="postgresql://admin_bpo:senha_segura_123@localhost:5433/db_bpo"
    AUTH_SECRET="seu_secret_nextauth"
    UPLOADTHING_TOKEN="seu_token_uploadthing"
-   CLIENT_NAME="Nome da Organização"
-
-   # Integração GitHub (opcional — necessária apenas para vincular contas GitHub às equipes)
-   APP_URL="https://seu-dominio.com"
-   GITHUB_OAUTH_CLIENT_ID="client_id_do_oauth_app_do_github"
-   GITHUB_OAUTH_CLIENT_SECRET="client_secret_do_oauth_app_do_github"
    ```
 
-   Para a integração com GitHub funcionar, crie um OAuth App em GitHub → Settings → Developer settings → OAuth Apps, com "Authorization callback URL" apontando para `${APP_URL}/api/integracoes/github/callback`.
-
-3. **Aplique as migrations e inicie:**
+4. **Crie o schema e os dados iniciais:**
    ```bash
-   npx prisma migrate deploy
+   npx prisma migrate dev --name init
+   npx tsx prisma/bootstrap-local.ts
+   ```
+   Isso cria um workspace, um usuário ADMIN (`admin@local.test` / `123456`) e um cliente de exemplo.
+
+5. **Inicie:**
+   ```bash
    npm run dev
    ```
 

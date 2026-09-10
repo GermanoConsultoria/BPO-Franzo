@@ -1,20 +1,24 @@
-import { getUsuariosDoWorkspace } from '@/app/actions' // Removi o import não usado do toggle
+import { getUsuariosDoWorkspace } from '@/app/actions'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import BotaoCriarUsuario from '@/components/ModalCriarUsuario'
-// REMOVA: import BotaoStatusUsuario ...
-import AcoesUsuario from '@/components/AcoesUsuario' // <--- IMPORTE O NOVO
+import AcoesUsuario from '@/components/AcoesUsuario'
+
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: 'Admin',
+  EMPRESA: 'Empresa',
+  CLIENTE: 'Cliente',
+}
 
 export default async function GestaoUsuariosPage() {
   const session = await auth()
-  
-  // Melhoria de segurança: Validar se session existe antes
+
   if (!session?.user?.email) redirect('/')
 
   const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email } })
 
-  if (usuarioLogado?.role !== 'OWNER') {
+  if (usuarioLogado?.role !== 'ADMIN') {
     redirect('/')
   }
 
@@ -25,7 +29,7 @@ export default async function GestaoUsuariosPage() {
       <header className="mb-8 border-b border-border pb-6 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Gestão de Usuários</h1>
-          <p className="text-text-muted mt-2">Gerencie quem tem acesso ao workspace.</p>
+          <p className="text-text-muted mt-2">Gerencie quem tem acesso ao BPO.</p>
         </div>
         <BotaoCriarUsuario />
       </header>
@@ -36,6 +40,7 @@ export default async function GestaoUsuariosPage() {
             <tr>
               <th className="px-6 py-4 font-semibold text-text-muted">Nome</th>
               <th className="px-6 py-4 font-semibold text-text-muted">Cargo</th>
+              <th className="px-6 py-4 font-semibold text-text-muted">Papel</th>
               <th className="px-6 py-4 font-semibold text-text-muted">Status</th>
               <th className="px-6 py-4 font-semibold text-text-muted text-right">Ações</th>
             </tr>
@@ -55,23 +60,19 @@ export default async function GestaoUsuariosPage() {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-text-muted">{u.cargo || '-'}</td>
+                <td className="px-6 py-4 text-text-muted">{ROLE_LABEL[u.role] ?? u.role}</td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                    u.ativo 
-                      ? 'bg-green-500/10 text-green-500 border-green-500/20' 
+                    u.ativo
+                      ? 'bg-green-500/10 text-green-500 border-green-500/20'
                       : 'bg-red-500/10 text-red-500 border-red-500/20'
                   }`}>
                     {u.ativo ? 'Ativo' : 'Inativo'}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">
-                   {/* Aqui entra a lógica nova: 
-                      Se NÃO for OWNER, mostra os botões. 
-                      (Ou seja, o Owner pode editar todo mundo, menos outros Owners se existissem, 
-                      ou a si mesmo se quiser travar essa lógica)
-                   */}
-                   {u.role !== 'OWNER' && (
-                      <AcoesUsuario usuario={u} /> 
+                   {u.role !== 'ADMIN' && (
+                      <AcoesUsuario usuario={u} />
                    )}
                 </td>
               </tr>

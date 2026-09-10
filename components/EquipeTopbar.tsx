@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import Image from 'next/image'
-import { ChevronDown, Search, Globe } from 'lucide-react'
+import { ChevronDown, Globe } from 'lucide-react'
 import type { EquipeBasica } from '@/types'
 
 interface Props {
@@ -38,9 +37,7 @@ export default function EquipeTopbar({ equipeAtual, minhasEquipes, botaoMenu }: 
       {/* 1. Área da Logo e Hambúrguer */}
       <div className="flex items-center gap-4 w-[220px]">
          {botaoMenu}
-         <div className="relative w-32 h-12 hidden sm:block"> 
-           <Image src="/flow-sem-fundo.png" alt="Logo" fill className="object-contain object-left" priority />
-         </div>
+         <span className="hidden sm:block text-xl font-bold tracking-wide text-foreground">BPO</span>
       </div>
 
       {/* 2. Área Contextual (Global vs Equipe) */}
@@ -65,7 +62,7 @@ export default function EquipeTopbar({ equipeAtual, minhasEquipes, botaoMenu }: 
                      {equipeAtual?.nome?.substring(0, 2).toUpperCase() || '?'}
                   </div>
                   <div className="text-left hidden md:block">
-                     <p className="text-[9px] text-text-muted font-bold uppercase leading-none mb-0.5">Equipe Atual</p>
+                     <p className="text-[9px] text-text-muted font-bold uppercase leading-none mb-0.5">Cliente Atual</p>
                      <p className="text-sm font-bold text-foreground leading-none">{equipeAtual?.nome || 'Carregando...'}</p>
                   </div>
                   <ChevronDown size={14} className="text-gray-400 ml-1" />
@@ -80,7 +77,7 @@ export default function EquipeTopbar({ equipeAtual, minhasEquipes, botaoMenu }: 
                               onClick={() => {
                                  setMenuEquipeOpen(false)
                                  // Navega mantendo a tela atual, mas trocando a equipe (ex: de tarefas para tarefas)
-                                 const currentContext = pathname.split('/').slice(3).join('/') || 'projetos'
+                                 const currentContext = pathname.split('/').slice(3).join('/') || 'financeiro/balancete'
                                  router.push(`/equipe/${eq.id}/${currentContext}`)
                               }}
                               className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${eq.id === equipeAtual?.id ? 'bg-indigo-50/10 border border-indigo-500/30' : 'hover:bg-surface-highlight'}`}
@@ -98,13 +95,6 @@ export default function EquipeTopbar({ equipeAtual, minhasEquipes, botaoMenu }: 
         )}
       </div>
 
-      {/* 3. Busca */}
-      <div className="flex-1 max-w-md ml-8 hidden lg:block">
-         <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Buscar tarefas ou projetos..." className="w-full bg-surface-highlight/10 border border-border rounded-full pl-10 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-foreground placeholder:text-gray-500 transition-all" />
-         </div>
-      </div>
     </header>
   )
 }

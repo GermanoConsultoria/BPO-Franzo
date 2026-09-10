@@ -1,13 +1,13 @@
 services:
   database:
     image: postgres:15-alpine
-    container_name: db_gerenciador_projetos
+    container_name: db_bpo
     environment:
-      POSTGRES_USER: admin_projeto
+      POSTGRES_USER: admin_bpo
       POSTGRES_PASSWORD: senha_segura_123
-      POSTGRES_DB: db_principal
+      POSTGRES_DB: db_bpo
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - dados_do_postgres:/var/lib/postgresql/data
 

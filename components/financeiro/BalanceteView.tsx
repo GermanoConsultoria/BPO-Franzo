@@ -10,6 +10,7 @@ import {
 import type { Balancete, ContratoEncerrando } from '@/types'
 
 interface Props {
+  equipeId: string
   balancete: Balancete | null
   dataInicio: string
   dataFim: string
@@ -84,7 +85,7 @@ function SeletorMesBalancete({ onAplicar }: { onAplicar: (ini: string, fim: stri
   )
 }
 
-export default function BalanceteView({ balancete, dataInicio, dataFim }: Props) {
+export default function BalanceteView({ equipeId, balancete, dataInicio, dataFim }: Props) {
   const router = useRouter()
   const [modo, setModo] = useState<'mes' | 'ano' | 'periodo'>('mes')
   const [anoSel, setAnoSel] = useState(new Date().getFullYear())
@@ -93,7 +94,7 @@ export default function BalanceteView({ balancete, dataInicio, dataFim }: Props)
   const [tipoGrafico, setTipoGrafico] = useState<'barra' | 'linha' | 'pizza'>('barra')
 
   function navegar(ini: string, fim: string) {
-    router.push(`/financeiro/balancete?inicio=${ini}&fim=${fim}`)
+    router.push(`/equipe/${equipeId}/financeiro/balancete?inicio=${ini}&fim=${fim}`)
   }
 
   function aplicarAno(ano: number) {

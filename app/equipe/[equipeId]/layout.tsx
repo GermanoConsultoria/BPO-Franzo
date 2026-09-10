@@ -22,24 +22,23 @@ export default async function EquipeLayout({
 
   if (!usuario) redirect('/login')
 
-  const equipeAtual = usuario.equipes.find(e => e.equipe_id === equipeId)
-  
+  // ADMIN e EMPRESA enxergam todos os clientes (equipes) do workspace.
+  // CLIENTE só enxerga as equipes das quais é membro (normalmente uma só).
+  const veTodosOsClientes = usuario.role === 'ADMIN' || usuario.role === 'EMPRESA'
+
+  const minhasEquipes = veTodosOsClientes
+    ? await prisma.equipe.findMany({ where: { workspace_id: usuario.workspace_id }, orderBy: { nome: 'asc' } })
+    : usuario.equipes.map(e => e.equipe)
+
+  const equipeAtual = minhasEquipes.find(e => e.id === equipeId) ?? null
+
   if (!equipeAtual) redirect('/')
 
-  // Projetos recentes (temporariamente mantidos assim, ajustaremos a lógica global no próximo passo)
-  const projetosIniciais = await prisma.projeto.findMany({
-    where: { ativo: true },
-    orderBy: { dt_acesso: 'desc' },
-    take: 10
-  })
-
   return (
-    // Centralizamos TUDO no AuthenticatedLayout
     <AuthenticatedLayout
        usuario={usuario as unknown as import('@/types').Usuario}
-       equipeAtual={equipeAtual.equipe}
-       minhasEquipes={usuario.equipes.map(e => e.equipe)}
-       projetosIniciais={projetosIniciais}
+       equipeAtual={equipeAtual}
+       minhasEquipes={minhasEquipes}
     >
       {children}
     </AuthenticatedLayout>

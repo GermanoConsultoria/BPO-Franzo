@@ -31,19 +31,19 @@ export default function BotaoExcluirEquipe({ equipeId, nomeEquipe }: Props) {
                 <AlertTriangle size={18} /> Zona de Perigo
             </h2>
             <p className="text-sm text-red-500">
-                A exclusão é irreversível. Todos os projetos, tarefas, etapas e anexos desta equipe serão apagados permanentemente.
+                A exclusão é irreversível. Todo o plano de contas e os lançamentos financeiros deste cliente serão apagados permanentemente.
             </p>
         </div>
 
         <div className="flex-shrink-0">
             {isPending ? (
-                 <span className="text-sm font-medium text-red-500 px-4 py-2">A apagar sistema...</span>
+                 <span className="text-sm font-medium text-red-500 px-4 py-2">Apagando...</span>
             ) : (
                 <div className="bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-sm transition-colors overflow-hidden">
-                    <BotaoDeletar 
-                        texto="Excluir equipe"
-                        titulo={`Excluir a equipe "${nomeEquipe}"?`}
-                        descricao="Esta ação apagará tudo o que está relacionado com esta equipe. Tem a certeza absoluta?"
+                    <BotaoDeletar
+                        texto="Excluir cliente"
+                        titulo={`Excluir o cliente "${nomeEquipe}"?`}
+                        descricao="Esta ação apagará todo o financeiro deste cliente. Tem certeza absoluta?"
                         onConfirm={handleExcluir}
                         // Um truque para forçar as classes do seu botão original a ficarem bonitas aqui:
                         className="!text-white !no-underline block px-6 py-2.5 font-bold"

@@ -34,7 +34,7 @@ export default function ModalAlterarSenha({ isOpen, onClose, usuario }: Props) {
         setSucesso(true)
         
       } catch {
-        toast.error('Erro ao alterar senha. Verifique se você é OWNER.')
+        toast.error('Erro ao alterar senha. Verifique se você é administrador.')
       }
     })
   }

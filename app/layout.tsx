@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Flow",
-  description: "Sistema de Gestão",
+  title: "BPO",
+  description: "Gestão financeira multi-cliente",
   icons: {
     icon: '/favicon.ico',
   }

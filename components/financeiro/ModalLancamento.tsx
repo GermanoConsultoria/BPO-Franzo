@@ -9,6 +9,7 @@ import ListaAnexos from '@/components/ListaAnexos'
 import type { LancamentoComRelacoes, PlanoContas, TipoLancamento, AnexoFinanceiro } from '@/types'
 
 interface Props {
+  equipeId: string
   tipo: TipoLancamento
   planoContas: PlanoContas[]
   lancamento?: LancamentoComRelacoes
@@ -24,7 +25,7 @@ function parseCentavos(valor: number) {
   return Math.round(valor * 100)
 }
 
-export default function ModalLancamento({ tipo, planoContas, lancamento, onClose, onSuccess }: Props) {
+export default function ModalLancamento({ equipeId, tipo, planoContas, lancamento, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false)
   const [aplicarATodos, setAplicarATodos] = useState(false)
   const [parcelas, setParcelas] = useState(lancamento?.numero_parcelas ?? 1)
@@ -86,6 +87,7 @@ export default function ModalLancamento({ tipo, planoContas, lancamento, onClose
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {lancamento && <input type="hidden" name="id" value={lancamento.id} />}
+          <input type="hidden" name="equipeId" value={equipeId} />
 
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">Descrição *</label>
@@ -230,7 +232,7 @@ export default function ModalLancamento({ tipo, planoContas, lancamento, onClose
               <ListaAnexos
                 anexos={anexos}
                 onDelete={async (id) => {
-                  const r = await excluirAnexoFinanceiro(id)
+                  const r = await excluirAnexoFinanceiro(id, equipeId)
                   if (!r.success) { toast.error(r.error); return }
                   setAnexos(prev => prev.filter(a => a.id !== id))
                   toast.success('Anexo removido.')
@@ -243,6 +245,7 @@ export default function ModalLancamento({ tipo, planoContas, lancamento, onClose
                   for (const file of files) {
                     const r = await salvarAnexoFinanceiro({
                       lancamento_id: lancamento.id,
+                      equipeId,
                       nome: file.name,
                       url: file.url,
                       key: file.key,

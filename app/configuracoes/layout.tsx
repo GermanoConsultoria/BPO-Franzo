@@ -17,27 +17,17 @@ export default async function ConfiguracoesLayout({
   })
 
   if (!usuario) redirect('/login')
+  if (usuario.role !== 'ADMIN') redirect('/')
 
-  // Projetos recentes para alimentar a barra lateral (Global do Workspace)
-  const projetosIniciais = await prisma.projeto.findMany({
-    where: { 
-        ativo: true,
-        workspace_id: usuario.workspace_id 
-    },
-    orderBy: { dt_acesso: 'desc' },
-    take: 10
-  })
-
-  // Pegamos a primeira equipe apenas como contexto visual para evitar erros no layout
-  const equipeVisual = usuario.equipes.length > 0 ? usuario.equipes[0].equipe : null
+  const minhasEquipes = usuario.role === 'ADMIN'
+    ? await prisma.equipe.findMany({ where: { workspace_id: usuario.workspace_id }, orderBy: { nome: 'asc' } })
+    : usuario.equipes.map(e => e.equipe)
 
   return (
-    // O AuthenticatedLayout desenha a Sidebar e a Topbar ao redor da tela
     <AuthenticatedLayout
        usuario={usuario as unknown as import('@/types').Usuario}
-       equipeAtual={equipeVisual}
-       minhasEquipes={usuario.equipes.map(e => e.equipe)}
-       projetosIniciais={projetosIniciais}
+       equipeAtual={minhasEquipes[0] ?? null}
+       minhasEquipes={minhasEquipes}
     >
       {children}
     </AuthenticatedLayout>

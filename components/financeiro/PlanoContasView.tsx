@@ -10,10 +10,11 @@ import type { PlanoContas, TipoLancamento } from '@/types'
 type ContaComContagem = PlanoContas & { _count: { lancamentos: number } }
 
 interface Props {
+  equipeId: string
   contas: ContaComContagem[]
 }
 
-export default function PlanoContasView({ contas: contasIniciais }: Props) {
+export default function PlanoContasView({ equipeId, contas: contasIniciais }: Props) {
   const router = useRouter()
   const [contas, setContas] = useState(contasIniciais)
   const [showModal, setShowModal] = useState(false)
@@ -53,7 +54,7 @@ export default function PlanoContasView({ contas: contasIniciais }: Props) {
   }
 
   async function handleToggle(id: string) {
-    const resultado = await toggleAtivoPlanoContas(id)
+    const resultado = await toggleAtivoPlanoContas(id, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     setContas(prev => prev.map(c => c.id === id ? { ...c, ativo: !c.ativo } : c))
   }
@@ -64,7 +65,7 @@ export default function PlanoContasView({ contas: contasIniciais }: Props) {
       return
     }
     if (!confirm(`Excluir a conta "${conta.nome}"?`)) return
-    const resultado = await excluirPlanoContas(conta.id)
+    const resultado = await excluirPlanoContas(conta.id, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success('Conta excluída.')
     setContas(prev => prev.filter(c => c.id !== conta.id))
@@ -142,6 +143,7 @@ export default function PlanoContasView({ contas: contasIniciais }: Props) {
             <h2 className="text-lg font-bold mb-4">{editando ? 'Editar Conta' : 'Nova Conta'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               {editando && <input type="hidden" name="id" value={editando.id} />}
+              <input type="hidden" name="equipeId" value={equipeId} />
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1">Tipo</label>
                 <select name="tipo" defaultValue={editando?.tipo ?? 'DESPESA'} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">

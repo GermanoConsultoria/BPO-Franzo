@@ -1,23 +1,20 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Key, Power, Loader2, Shield } from 'lucide-react'
+import { Key, Power, Loader2 } from 'lucide-react'
 import { toggleStatusUsuario } from '@/app/actions'
 import ModalAlterarSenha from './ModalAlterarSenha'
-import ModalPermissoesSidebar from './ModalPermissoesSidebar'
 
 interface Props {
   usuario: {
     id: string
     nome: string
     ativo: boolean
-    permissoes_sidebar?: string | null
   }
 }
 
 export default function AcoesUsuario({ usuario }: Props) {
   const [modalSenha, setModalSenha] = useState(false)
-  const [modalPermissoes, setModalPermissoes] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const handleToggleStatus = () => {
@@ -29,15 +26,6 @@ export default function AcoesUsuario({ usuario }: Props) {
   return (
     <>
       <div className="flex justify-end items-center gap-2">
-        {/* PERMISSÕES DA SIDEBAR */}
-        <button
-          onClick={() => setModalPermissoes(true)}
-          className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors border border-transparent hover:border-indigo-500/20"
-          title="Permissões da Sidebar"
-        >
-          <Shield size={18} />
-        </button>
-
         {/* ALTERAR SENHA */}
         <button
           onClick={() => setModalSenha(true)}
@@ -65,12 +53,6 @@ export default function AcoesUsuario({ usuario }: Props) {
       <ModalAlterarSenha
         isOpen={modalSenha}
         onClose={() => setModalSenha(false)}
-        usuario={usuario}
-      />
-
-      <ModalPermissoesSidebar
-        isOpen={modalPermissoes}
-        onClose={() => setModalPermissoes(false)}
         usuario={usuario}
       />
     </>

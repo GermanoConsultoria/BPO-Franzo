@@ -8,6 +8,7 @@ import ModalLancamento from '@/components/financeiro/ModalLancamento'
 import type { LancamentoComRelacoes, PlanoContas, TipoLancamento, StatusLancamento } from '@/types'
 
 interface Props {
+  equipeId: string
   lancamentos: LancamentoComRelacoes[]
   planoContas: PlanoContas[]
   tipo: TipoLancamento
@@ -109,7 +110,7 @@ function formatarData(data: Date | string) {
 }
 
 
-export default function LancamentosView({ lancamentos: inicial, planoContas, tipo }: Props) {
+export default function LancamentosView({ equipeId, lancamentos: inicial, planoContas, tipo }: Props) {
   const [lancamentos, setLancamentos] = useState(inicial)
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<LancamentoComRelacoes | null>(null)
@@ -137,7 +138,7 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
         const ultimo = new Date(Number(ano), Number(mes), 0)
         dataFim = `${ano}-${mes}-${String(ultimo.getDate()).padStart(2, '0')}`
       }
-      const atualizados = await getLancamentosFinanceiros(tipo, {
+      const atualizados = await getLancamentosFinanceiros(equipeId, tipo, {
         dataInicio,
         dataFim,
         status: filtroStatus,
@@ -147,7 +148,7 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
     } catch {
       toast.error('Erro ao carregar lançamentos.')
     }
-  }, [tipo, filtroMes, filtroStatus, filtroCategoria])
+  }, [equipeId, tipo, filtroMes, filtroStatus, filtroCategoria])
 
   useEffect(() => {
     if (!montado.current) { montado.current = true; return }
@@ -169,7 +170,7 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
   async function handlePagar() {
     if (!modalPagar) return
     const isRecorrente = lancamentos.find(l => l.id === modalPagar)?.recorrencia !== 'NAO'
-    const resultado = await pagarLancamento(modalPagar, dtPagamento)
+    const resultado = await pagarLancamento(modalPagar, dtPagamento, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success(isRecorrente ? 'Pago. Próximo lançamento criado.' : 'Lançamento marcado como pago.')
     if (isRecorrente) {
@@ -182,7 +183,7 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
 
   async function handleCancelar(id: string) {
     if (!confirm('Cancelar este lançamento?')) return
-    const resultado = await cancelarLancamento(id)
+    const resultado = await cancelarLancamento(id, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success('Lançamento cancelado.')
     setLancamentos(prev => prev.map(l => l.id === id ? { ...l, status: 'CANCELADO' } : l))
@@ -200,14 +201,14 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
       return
     }
     if (!confirm('Excluir este lançamento permanentemente?')) return
-    const resultado = await excluirLancamento(id)
+    const resultado = await excluirLancamento(id, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success('Lançamento excluído.')
     setLancamentos(prev => prev.filter(l => l.id !== id))
   }
 
   async function handleExcluirSoParcela(id: string) {
-    const resultado = await excluirLancamento(id)
+    const resultado = await excluirLancamento(id, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success('Parcela excluída.')
     setLancamentos(prev => prev.filter(l => l.id !== id))
@@ -215,7 +216,7 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
   }
 
   async function handleExcluirGrupoParcelas(grupo_parcela_id: string) {
-    const resultado = await excluirGrupoParcelas(grupo_parcela_id)
+    const resultado = await excluirGrupoParcelas(grupo_parcela_id, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success('Todas as parcelas do grupo foram excluídas.')
     setLancamentos(prev => prev.filter(l => l.grupo_parcela_id !== grupo_parcela_id))
@@ -223,7 +224,7 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
   }
 
   async function handleExcluirAPartirDesta(lancamento: LancamentoComRelacoes) {
-    const resultado = await excluirParcelasAPartirDesta(lancamento.id)
+    const resultado = await excluirParcelasAPartirDesta(lancamento.id, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success('Parcelas excluídas a partir desta.')
     await recarregarLancamentos()
@@ -231,7 +232,7 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
   }
 
   async function handleExcluirSomenteEste(id: string) {
-    const resultado = await excluirLancamento(id)
+    const resultado = await excluirLancamento(id, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success('Lançamento excluído. Recorrência encerrada.')
     setLancamentos(prev => prev.filter(l => l.id !== id))
@@ -239,7 +240,7 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
   }
 
   async function handleExcluirEAvancar(id: string) {
-    const resultado = await excluirEAvancarRecorrencia(id)
+    const resultado = await excluirEAvancarRecorrencia(id, equipeId)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success('Lançamento excluído. Próximo gerado.')
     await recarregarLancamentos()
@@ -401,6 +402,7 @@ export default function LancamentosView({ lancamentos: inicial, planoContas, tip
       {/* Modal criar/editar */}
       {showModal && (
         <ModalLancamento
+          equipeId={equipeId}
           tipo={tipo}
           planoContas={planoContas}
           lancamento={editando ?? undefined}

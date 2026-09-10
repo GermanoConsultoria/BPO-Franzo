@@ -51,7 +51,16 @@ export default function ModalCriarUsuario() {
 
               <div>
                 <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Cargo</label>
-                <input name="cargo" className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: Desenvolvedor" />
+                <input name="cargo" className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: Financeiro" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Papel de Acesso</label>
+                <select name="role" defaultValue="CLIENTE" className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none">
+                  <option value="CLIENTE">Cliente — vê só o financeiro dele</option>
+                  <option value="EMPRESA">Empresa — vê o financeiro de todos os clientes</option>
+                </select>
+                <p className="text-[10px] text-text-muted mt-1">Depois, vincule este usuário a um cliente em Configurações → Clientes.</p>
               </div>
 
               <div>

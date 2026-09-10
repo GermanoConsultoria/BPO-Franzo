@@ -3,19 +3,18 @@
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { authenticate } from '@/app/actions'
-import Image from 'next/image'
 
 export default function LoginPage() {
   const [errorMessage, dispatch, isPending] = useActionState(authenticate, undefined)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface/50 p-4 overflow-hidden">
-      
+
       {/* CARD CENTRALIZADO */}
       {/* max-h-full garante que o card nunca seja maior que a tela */}
       <div className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-full border border-white/5">
-        
-        {/* --- LOGO SUPERIOR (GERTECH) --- */}
+
+        {/* --- MARCA --- */}
         <div
           className="h-36 flex justify-center items-center shrink-0 relative overflow-hidden"
           style={{ background: 'radial-gradient(ellipse at center, #1a4a7a 0%, #0d2d4e 50%, #081c32 100%)' }}
@@ -27,9 +26,7 @@ export default function LoginPage() {
             </filter>
             <rect width="100%" height="100%" filter="url(#noise)" style={{ mixBlendMode: 'soft-light' }} />
           </svg>
-          <div className="relative w-48 h-28 z-10">
-            <Image src="/logo-gtech-sem-fundo.png" alt="Gertech" fill className="object-contain" priority />
-          </div>
+          <span className="relative z-10 text-4xl font-bold tracking-wide text-white">BPO</span>
         </div>
 
         {/* FORMULÁRIO (COM SCROLL INTERNO SE NECESSÁRIO) */}
@@ -75,13 +72,6 @@ export default function LoginPage() {
             <LoginButton />
           </div>
         </form>
-
-        {/* --- LOGO INFERIOR (FLOW) --- */}
-        <div className="pb-6 pt-2 flex justify-center items-center shrink-0">
-            <div className="relative w-24 h-10 opacity-90">
-                <Image src="/flow-sem-fundo.png" alt="Flow" fill className="object-contain" />
-            </div>
-        </div>
 
       </div>
     </div>
