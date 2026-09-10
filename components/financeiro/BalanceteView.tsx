@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { Fragment, useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import {
@@ -346,9 +346,8 @@ function TabelaConta({
             {itens
               .sort((a, b) => b.total - a.total)
               .map(item => (
-                <>
+                <Fragment key={item.plano_contas_id}>
                   <tr
-                    key={item.plano_contas_id}
                     className="hover:bg-background/50 cursor-pointer"
                     onClick={() => setContaAberta(contaAberta === item.plano_contas_id ? null : item.plano_contas_id)}
                   >
@@ -398,7 +397,7 @@ function TabelaConta({
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             <tr className="border-t-2 border-border font-semibold">
               <td className="px-4 py-2.5 text-gray-300">Total</td>
