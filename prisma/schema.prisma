@@ -1,0 +1,422 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id        String    @id @default(uuid())
+  nome      String
+  dt_insert DateTime  @default(now())
+  
+  equipes   Equipe[]
+  colunas   Coluna[]
+  projetos  Projeto[]
+  usuarios  Usuario[]
+
+  @@map("workspace")
+}
+
+// ==========================================
+// TABELAS DE EQUIPE
+// ==========================================
+
+model Equipe {
+  id           String          @id @default(uuid())
+  nome         String
+  descricao    String?
+  whatsapp     String?
+  workspace_id String
+  dt_insert    DateTime        @default(now())
+  dt_update    DateTime        @default(now()) @updatedAt
+
+  workspace    Workspace       @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  membros      EquipeUsuario[]
+  projetos     Projeto[]
+  colunas      Coluna[]
+  pacotes      PacoteTemplate[]
+  recursos     RecursoEquipe[]
+  contasGithub ContaGithub[]
+
+  @@map("equipe")
+}
+
+model ContaGithub {
+  id                String   @id @default(uuid())
+  equipe_id         String
+  github_login      String
+  github_account_id Int
+  access_token      String
+  criado_por_id     String?
+  dt_insert         DateTime @default(now())
+
+  equipe     Equipe    @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
+  criado_por Usuario?  @relation(fields: [criado_por_id], references: [id], onDelete: SetNull)
+  projetos   Projeto[]
+
+  @@unique([equipe_id, github_account_id])
+  @@map("conta_github")
+}
+
+model EquipeUsuario {
+  equipe_id  String
+  usuario_id String
+  role       String   @default("MEMBER")
+  dt_insert  DateTime @default(now())
+
+  equipe     Equipe   @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
+  usuario    Usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@id([equipe_id, usuario_id])
+  @@map("equipe_usuario")
+}
+
+// ==========================================
+// TABELAS ATUALIZADAS
+// ==========================================
+
+model Usuario {
+  id                 String            @id @default(uuid())
+  nome               String
+  email              String            @unique
+  senha              String
+  dt_insert          DateTime          @default(now())
+  ativo              Boolean           @default(true)
+  cargo              String?
+  dt_update          DateTime          @default(now()) @updatedAt
+  imagem             String?
+  role               String            @default("USER")
+  permissoes_sidebar String?
+  workspace_id       String
+  
+  equipes         EquipeUsuario[]
+  comentarios     Comentario[]
+  acoes_historico HistoricoTarefa[]
+  projetos        Projeto[]
+  tarefas         Tarefa[]
+  contasGithub    ContaGithub[]
+  workspace       Workspace         @relation(fields: [workspace_id], references: [id], map: "Usuario_workspace_id_fkey")
+
+  @@map("usuario")
+}
+
+model Coluna {
+  id           String          @id(map: "Coluna_pkey") @default(uuid())
+  nome         String
+  cor          String?
+  workspace_id String
+  dt_insert    DateTime        @default(now())
+  dt_update    DateTime        @default(now()) @updatedAt
+  equipe_id    String?
+  
+  equipe       Equipe?         @relation(fields: [equipe_id], references: [id], onDelete: SetNull)
+  workspace    Workspace       @relation(fields: [workspace_id], references: [id], map: "Coluna_workspace_id_fkey")
+  projetos     ProjetoColuna[]
+  tarefas      Tarefa[]
+
+  @@map("coluna")
+}
+
+model Projeto {
+  id             String          @id @default(uuid())
+  nome           String
+  workspace_id   String
+  dt_insert      DateTime        @default(now())
+  descricao      String?
+  dt_acesso      DateTime        @default(now())
+  dt_update      DateTime        @default(now()) @updatedAt
+  usuario_id     String
+  ativo          Boolean         @default(true)
+  imagem         String?
+  equipe_id      String?
+  
+  // --- NOVOS CAMPOS PARA O PORTFÓLIO MACRO (ONBLOX) ---
+  fase_macro              String?   // Ex: "Modelagem", "Go Live"
+  erp                     String?   // Ex: "Winthor", "Sankhya"
+  dados_acesso            String?   // Ex: "TeamViewer: 123 456 | Senha: abc"
+  status_cliente          String?   @default("EM_ANDAMENTO")
+  pacote_onblox           String?   // Ex: "WMS + REMOTO"
+  tipo_integracao         String?   // Ex: "VIEW", "API", "BANCO DE DADOS"
+  motivo_pausa            String?   // Se o status for PAUSADO
+  data_inicio             DateTime? // Data de início do projeto
+  data_prevista_entrega   DateTime? // Previsão de conclusão
+  link_fluxo_implantacao  String?   // URL do fluxo de implantação
+  // --------------------------------------------------
+
+  // --- INTEGRAÇÃO GITHUB ---
+  conta_github_id        String?
+  github_repo_id         Int?
+  github_repo_full_name  String?
+  github_webhook_id      Int?
+  github_webhook_secret  String?
+  // -------------------------
+
+  equipe         Equipe?         @relation(fields: [equipe_id], references: [id], onDelete: SetNull)
+  usuario        Usuario         @relation(fields: [usuario_id], references: [id], map: "Projeto_usuario_id_fkey")
+  workspace      Workspace       @relation(fields: [workspace_id], references: [id], map: "Projeto_workspace_id_fkey")
+  contaGithub    ContaGithub?    @relation(fields: [conta_github_id], references: [id], onDelete: SetNull)
+  colunas        ProjetoColuna[]
+  tarefas        Tarefa[]
+
+  @@unique([github_repo_id])
+  @@map("projeto")
+}
+
+// ==========================================
+// TABELAS MANTIDAS INTACTAS
+// ==========================================
+
+model ProjetoColuna {
+  projeto_id  String
+  coluna_id   String
+  ordem       Int
+  data_inicio DateTime?  // Data de início da etapa
+  data_fim    DateTime?  // Data de conclusão da etapa
+  coluna      Coluna  @relation(fields: [coluna_id], references: [id], onDelete: Cascade, map: "ProjetoColuna_coluna_id_fkey")
+  projeto     Projeto @relation(fields: [projeto_id], references: [id], onDelete: Cascade, map: "ProjetoColuna_projeto_id_fkey")
+
+  @@id([projeto_id, coluna_id])
+  @@map("projeto_coluna")
+}
+
+model Tarefa {
+  id                  String            @id @default(uuid())
+  titulo              String
+  descricao           String?
+  usuario_id          String?
+  dt_insert           DateTime          @default(now())
+  coluna_id           String?
+  concluida           Boolean           @default(false)
+  dificuldade_id      Int
+  dt_conclusao        DateTime?
+  dt_update           DateTime          @default(now()) @updatedAt
+  dt_vencimento       DateTime?
+  prioridade_id       Int
+  projeto_id          String
+  recorrencia         Recorrencia       @default(NAO)
+  dias_recorrencia    String?
+  dia_mes_recorrencia Int?
+  ordem               Int               @default(0)
+  github_commit_sha   String?
+  anexos              Anexo[]
+  comentarios         Comentario[]
+  historico           HistoricoTarefa[]
+  coluna              Coluna?           @relation(fields: [coluna_id], references: [id], map: "Tarefa_coluna_id_fkey")
+  dificuldade         OpcaoDificuldade  @relation(fields: [dificuldade_id], references: [id], map: "Tarefa_dificuldade_id_fkey")
+  prioridade          OpcaoPrioridade   @relation(fields: [prioridade_id], references: [id], map: "Tarefa_prioridade_id_fkey")
+  projeto             Projeto           @relation(fields: [projeto_id], references: [id], onDelete: Cascade, map: "Tarefa_projeto_id_fkey")
+  usuario             Usuario?          @relation(fields: [usuario_id], references: [id], map: "Tarefa_usuario_id_fkey")
+
+  @@unique([projeto_id, github_commit_sha])
+  @@map("tarefa")
+}
+
+model OpcaoPrioridade {
+  id      Int      @id(map: "OpcaoPrioridade_pkey")
+  nome    String
+  tarefas Tarefa[]
+
+  @@map("opcao_prioridade")
+}
+
+model OpcaoDificuldade {
+  id      Int      @id(map: "OpcaoDificuldade_pkey")
+  nome    String
+  tarefas Tarefa[]
+
+  @@map("opcao_dificuldade")
+}
+
+model Comentario {
+  id         String   @id(map: "Comentario_pkey") @default(uuid())
+  texto      String
+  tarefa_id  String
+  usuario_id String
+  dt_insert  DateTime @default(now())
+  dt_update  DateTime @default(now()) @updatedAt
+  imagemUrl  String?
+  tarefa     Tarefa   @relation(fields: [tarefa_id], references: [id], onDelete: Cascade, map: "Comentario_tarefa_id_fkey")
+  usuario    Usuario  @relation(fields: [usuario_id], references: [id], map: "Comentario_usuario_id_fkey")
+
+  @@map("comentario")
+}
+
+model HistoricoTarefa {
+  id           String        @id(map: "HistoricoTarefa_pkey") @default(uuid())
+  tarefa_id    String
+  usuario_id   String?
+  campo        CampoAlterado
+  valor_antigo String?
+  valor_novo   String?
+  dt_evento    DateTime      @default(now())
+  tarefa       Tarefa        @relation(fields: [tarefa_id], references: [id], onDelete: Cascade, map: "HistoricoTarefa_tarefa_id_fkey")
+  usuario      Usuario?      @relation(fields: [usuario_id], references: [id], map: "HistoricoTarefa_usuario_id_fkey")
+
+  @@index([dt_evento])
+  @@index([tarefa_id])
+  @@map("historico_tarefa")
+}
+
+model Anexo {
+  id        String   @id(map: "Anexo_pkey") @default(uuid())
+  nome      String
+  url       String
+  key       String
+  tamanho   Int
+  dt_upload DateTime @default(now())
+  tarefa_id String
+  tarefa    Tarefa   @relation(fields: [tarefa_id], references: [id], onDelete: Cascade, map: "Anexo_tarefa_id_fkey")
+
+  @@map("anexo")
+}
+
+// ==========================================
+// NOVAS TABELAS DO MOTOR DE TEMPLATES
+// ==========================================
+
+model PacoteTemplate {
+  id           String           @id @default(uuid())
+  nome         String           // Ex: "Modelagem Macropack"
+  descricao    String?          
+  equipe_id    String
+  dt_insert    DateTime         @default(now())
+  dt_update    DateTime         @default(now()) @updatedAt
+
+  equipe       Equipe           @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
+  tarefas      TarefaTemplate[]
+
+  @@map("pacote_template")
+}
+
+model TarefaTemplate {
+  id             String         @id @default(uuid())
+  titulo         String         // Ex: "Validar Cadastros de Dicon"
+  descricao      String?
+  dificuldade_id Int            @default(1)
+  prioridade_id  Int            @default(1)
+  pacote_id      String
+  dt_insert      DateTime       @default(now())
+  ordem          Int            @default(0)
+
+  pacote         PacoteTemplate @relation(fields: [pacote_id], references: [id], onDelete: Cascade)
+
+  @@map("tarefa_template")
+}
+
+// ==========================================
+// RECURSOS / LINKS DA EQUIPE ONBLOX
+// ==========================================
+
+model RecursoEquipe {
+  id            String   @id @default(uuid())
+  equipe_id     String
+  titulo        String
+  url           String
+  descricao     String?
+  categoria     String?
+  icone         String?
+  tipo          String   @default("LINK")  // "LINK" | "ARQUIVO"
+  arquivo_nome  String?                    // Nome original do arquivo (para TIPO = ARQUIVO)
+  ordem         Int      @default(0)
+  dt_insert     DateTime @default(now())
+  dt_update     DateTime @default(now()) @updatedAt
+
+  equipe        Equipe   @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
+
+  @@map("recurso_equipe")
+}
+
+enum Recorrencia {
+  NAO
+  DIARIAMENTE
+  SEMANALMENTE
+  MENSALMENTE
+}
+
+enum CampoAlterado {
+  CRIACAO
+  TITULO
+  DESCRICAO
+  DT_VENCIMENTO
+  PRIORIDADE
+  DIFICULDADE
+  COLUNA
+  CONCLUSAO
+  REABERTURA
+  RESPONSAVEL
+  ANEXO_REMOVIDO
+}
+
+// ==========================================
+// MÓDULO FINANCEIRO
+// ==========================================
+
+model PlanoContas {
+  id           String                 @id @default(uuid())
+  workspace_id String
+  tipo         TipoLancamento
+  nome         String
+  ativo        Boolean                @default(true)
+  dt_insert    DateTime               @default(now())
+  dt_update    DateTime               @default(now()) @updatedAt
+
+  lancamentos  LancamentoFinanceiro[]
+
+  @@map("plano_contas")
+}
+
+model LancamentoFinanceiro {
+  id                String                 @id @default(uuid())
+  workspace_id      String
+  tipo              TipoLancamento
+  descricao         String
+  beneficiario      String?
+  valor             Decimal                @db.Decimal(15, 2)
+  dt_vencimento     DateTime
+  dt_pagamento      DateTime?
+  numero_documento  String?
+  plano_contas_id   String
+  status            StatusLancamento       @default(PENDENTE)
+  recorrencia       Recorrencia            @default(NAO)
+  numero_parcelas   Int?
+  parcela_atual     Int?
+  grupo_parcela_id  String?
+  lancamento_pai_id String?
+  dt_insert         DateTime               @default(now())
+  dt_update         DateTime               @default(now()) @updatedAt
+
+  plano_contas      PlanoContas            @relation(fields: [plano_contas_id], references: [id])
+  lancamento_pai    LancamentoFinanceiro?  @relation("Parcelas", fields: [lancamento_pai_id], references: [id], onDelete: SetNull)
+  parcelas          LancamentoFinanceiro[] @relation("Parcelas")
+  anexos            AnexoFinanceiro[]
+
+  @@map("lancamento_financeiro")
+}
+
+model AnexoFinanceiro {
+  id            String               @id @default(uuid())
+  lancamento_id String
+  nome          String
+  url           String
+  key           String
+  tamanho       Int
+  dt_upload     DateTime             @default(now())
+
+  lancamento    LancamentoFinanceiro @relation(fields: [lancamento_id], references: [id], onDelete: Cascade)
+
+  @@map("anexo_financeiro")
+}
+
+enum TipoLancamento {
+  DESPESA
+  RECEITA
+}
+
+enum StatusLancamento {
+  PENDENTE
+  PAGO
+  CANCELADO
+}

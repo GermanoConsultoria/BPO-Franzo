@@ -1,0 +1,81 @@
+@import "tailwindcss";
+@source "../node_modules/@uploadthing/react/dist";
+
+@theme {
+  /* --- PALETA DE CORES SUAVE (ZINC) --- */
+  --color-background: #18181b; 
+  --color-surface: #27272a; 
+  --color-surface-highlight: #3f3f46;
+  --color-border: #3f3f46;
+
+  /* --- TEXTOS (CONTRASTE CORRIGIDO) --- */
+  --color-foreground: #f4f4f5; 
+  --color-text-muted: #a1a1aa; 
+  
+  /* --- ACENTOS (INDIGO MAIS SUAVE) --- */
+  --color-primary: #6366f1;
+  --color-primary-hover: #818cf8;
+}
+
+/* --- LÓGICA DE DENSIDADE (A SOLUÇÃO PROFISSIONAL) --- */
+
+/* 1. Define o tamanho base padrão (Monitores Grandes) */
+html {
+  font-size: 16px; /* 1rem = 16px (Padrão mundial) */
+}
+
+/* 2. Em Notebooks (Telas menores que 1440px), reduzimos a base */
+@media (max-width: 1440px) {
+  html {
+    font-size: 14px; /* AGORA 1rem = 14px (Tudo diminui 12.5%) */
+  }
+}
+
+/* 3. (Opcional) Em telas muito pequenas ou projetores antigos (1024px) */
+@media (max-width: 1024px) {
+  html {
+    font-size: 13px; /* Tudo fica bem compacto */
+  }
+}
+
+/* --- RESET GLOBAL E ESTILIZAÇÃO --- */
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Garante que a transição de tamanho seja suave se redimensionar a janela */
+  transition: font-size 0.2s ease-in-out; 
+}
+
+/* TRUQUE: Inputs e Selects escuros */
+input, textarea, select {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-foreground) !important;
+}
+
+/* Placeholder legível */
+::placeholder {
+  color: var(--color-text-muted) !important;
+  opacity: 0.7;
+}
+
+/* Scrollbar escura elegante */
+::-webkit-scrollbar {
+  width: 8px; /* O tamanho da barra também vai respeitar a escala se usar rem, mas px é fixo */
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-highlight);
+  border-radius: 4px;
+}
+
+/* Classes Utilitárias (Mantidas por precaução) */
+.bg-surface { background-color: var(--color-surface); }
+.text-foreground { color: var(--color-foreground); }
+.text-muted { color: var(--color-text-muted); }

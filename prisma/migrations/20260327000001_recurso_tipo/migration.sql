@@ -1,0 +1,2 @@
+ALTER TABLE "recurso_equipe" ADD COLUMN IF NOT EXISTS "tipo" TEXT NOT NULL DEFAULT 'LINK';
+ALTER TABLE "recurso_equipe" ADD COLUMN IF NOT EXISTS "arquivo_nome" TEXT;
