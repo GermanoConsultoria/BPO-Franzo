@@ -9,12 +9,13 @@ import {
     removerMembroEquipe,
 } from '@/app/actions'
 import BotaoExcluirEquipe from '@/components/BotaoExcluirEquipe'
+import { PERMISSOES, temPermissao } from '@/lib/permissoes'
 
 export const dynamic = 'force-dynamic'
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Admin',
-  EMPRESA: 'Empresa',
+  PERSONALIZADO: 'Personalizado',
   CLIENTE: 'Cliente',
 }
 
@@ -23,8 +24,8 @@ export default async function DetalhesClientePage({ params }: { params: Promise<
   const session = await auth()
   if (!session?.user?.email) redirect('/login')
 
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email } })
-  if (usuarioLogado?.role !== 'ADMIN') redirect('/')
+  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  if (!usuarioLogado || !temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)) redirect('/')
 
   const equipe = await prisma.equipe.findUnique({
     where: { id },

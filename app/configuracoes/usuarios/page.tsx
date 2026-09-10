@@ -4,10 +4,11 @@ import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import BotaoCriarUsuario from '@/components/ModalCriarUsuario'
 import AcoesUsuario from '@/components/AcoesUsuario'
+import { PERMISSOES, temPermissao } from '@/lib/permissoes'
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Admin',
-  EMPRESA: 'Empresa',
+  PERSONALIZADO: 'Personalizado',
   CLIENTE: 'Cliente',
 }
 
@@ -16,9 +17,9 @@ export default async function GestaoUsuariosPage() {
 
   if (!session?.user?.email) redirect('/')
 
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email } })
+  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
 
-  if (usuarioLogado?.role !== 'ADMIN') {
+  if (!temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_USUARIOS)) {
     redirect('/')
   }
 
@@ -72,7 +73,7 @@ export default async function GestaoUsuariosPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                    {u.role !== 'ADMIN' && (
-                      <AcoesUsuario usuario={u} />
+                      <AcoesUsuario usuario={u} permissoesAtuais={u.permissoes.map(p => p.chave)} />
                    )}
                 </td>
               </tr>

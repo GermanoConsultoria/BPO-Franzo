@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import AuthenticatedLayout from '@/components/AuthenticatedLayout'
+import { PERMISSOES, temPermissao } from '@/lib/permissoes'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -12,11 +13,11 @@ export default async function Home() {
 
   const usuario = await prisma.usuario.findUnique({
     where: { email: session.user.email },
-    include: { equipes: { include: { equipe: true } } }
+    include: { equipes: { include: { equipe: true } }, permissoes: true }
   })
   if (!usuario) redirect('/login')
 
-  const veTodosOsClientes = usuario.role === 'ADMIN' || usuario.role === 'EMPRESA'
+  const veTodosOsClientes = usuario.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)
 
   const minhasEquipes = veTodosOsClientes
     ? await prisma.equipe.findMany({ where: { workspace_id: usuario.workspace_id }, orderBy: { nome: 'asc' } })

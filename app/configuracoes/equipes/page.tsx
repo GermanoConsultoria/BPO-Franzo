@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { criarEquipe } from '@/app/actions'
 import { Settings, Users, Wallet } from 'lucide-react'
+import { PERMISSOES, temPermissao } from '@/lib/permissoes'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,8 +12,8 @@ export default async function GestaoClientesPage() {
   const session = await auth()
   if (!session?.user?.email) redirect('/login')
 
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email } })
-  if (usuarioLogado?.role !== 'ADMIN') redirect('/')
+  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  if (!usuarioLogado || !temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)) redirect('/')
 
   const equipes = await prisma.equipe.findMany({
     where: { workspace_id: usuarioLogado.workspace_id! },

@@ -1,20 +1,24 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Key, Power, Loader2 } from 'lucide-react'
+import { Key, Power, Loader2, ShieldCheck } from 'lucide-react'
 import { toggleStatusUsuario } from '@/app/actions'
 import ModalAlterarSenha from './ModalAlterarSenha'
+import ModalPermissoesUsuario from './ModalPermissoesUsuario'
 
 interface Props {
   usuario: {
     id: string
     nome: string
     ativo: boolean
+    role?: string
   }
+  permissoesAtuais?: string[]
 }
 
-export default function AcoesUsuario({ usuario }: Props) {
+export default function AcoesUsuario({ usuario, permissoesAtuais = [] }: Props) {
   const [modalSenha, setModalSenha] = useState(false)
+  const [modalPermissoes, setModalPermissoes] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const handleToggleStatus = () => {
@@ -26,6 +30,17 @@ export default function AcoesUsuario({ usuario }: Props) {
   return (
     <>
       <div className="flex justify-end items-center gap-2">
+        {/* PERMISSÕES (só para papel Personalizado) */}
+        {usuario.role === 'PERSONALIZADO' && (
+          <button
+            onClick={() => setModalPermissoes(true)}
+            className="p-2 text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-colors border border-transparent hover:border-indigo-500/20"
+            title="Permissões"
+          >
+            <ShieldCheck size={18} />
+          </button>
+        )}
+
         {/* ALTERAR SENHA */}
         <button
           onClick={() => setModalSenha(true)}
@@ -55,6 +70,15 @@ export default function AcoesUsuario({ usuario }: Props) {
         onClose={() => setModalSenha(false)}
         usuario={usuario}
       />
+
+      {usuario.role === 'PERSONALIZADO' && (
+        <ModalPermissoesUsuario
+          isOpen={modalPermissoes}
+          onClose={() => setModalPermissoes(false)}
+          usuario={usuario}
+          permissoesAtuais={permissoesAtuais}
+        />
+      )}
     </>
   )
 }

@@ -3,6 +3,7 @@ import { Users, Building2, ChevronRight } from 'lucide-react'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
+import { PERMISSOES, temPermissao } from '@/lib/permissoes'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,8 +11,11 @@ export default async function ConfiguracoesHubPage() {
   const session = await auth()
   if (!session?.user?.email) redirect('/login')
 
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email } })
-  if (usuarioLogado?.role !== 'ADMIN') redirect('/')
+  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const acessaConfiguracoes = usuarioLogado?.role === 'ADMIN'
+    || temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_USUARIOS)
+    || temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)
+  if (!acessaConfiguracoes) redirect('/')
 
   return (
     <div className="p-8 max-w-6xl mx-auto min-h-screen animate-in fade-in">

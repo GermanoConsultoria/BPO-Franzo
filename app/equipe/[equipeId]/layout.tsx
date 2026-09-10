@@ -2,6 +2,7 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import AuthenticatedLayout from '@/components/AuthenticatedLayout'
+import { PERMISSOES, temPermissao } from '@/lib/permissoes'
 
 export default async function EquipeLayout({
   children,
@@ -17,14 +18,15 @@ export default async function EquipeLayout({
 
   const usuario = await prisma.usuario.findUnique({
     where: { email: session.user.email },
-    include: { equipes: { include: { equipe: true } } }
+    include: { equipes: { include: { equipe: true } }, permissoes: true }
   })
 
   if (!usuario) redirect('/login')
 
-  // ADMIN e EMPRESA enxergam todos os clientes (equipes) do workspace.
-  // CLIENTE só enxerga as equipes das quais é membro (normalmente uma só).
-  const veTodosOsClientes = usuario.role === 'ADMIN' || usuario.role === 'EMPRESA'
+  // ADMIN e PERSONALIZADO com a permissão "ver todos os clientes" enxergam
+  // todas as equipes do workspace. CLIENTE só enxerga as equipes das quais é
+  // membro (normalmente uma só).
+  const veTodosOsClientes = usuario.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)
 
   const minhasEquipes = veTodosOsClientes
     ? await prisma.equipe.findMany({ where: { workspace_id: usuario.workspace_id }, orderBy: { nome: 'asc' } })

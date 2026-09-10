@@ -2,11 +2,13 @@
 
 import { useState } from 'react'
 import { criarNovoUsuario } from '@/app/actions'
+import { PERMISSOES_LABEL } from '@/lib/permissoes'
 
 export default function ModalCriarUsuario() {
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [role, setRole] = useState('CLIENTE')
 
   async function handleSubmit(formData: FormData) {
     setIsLoading(true)
@@ -19,6 +21,7 @@ export default function ModalCriarUsuario() {
       setError(res.erro)
     } else {
       setIsOpen(false)
+      setRole('CLIENTE')
     }
   }
 
@@ -56,12 +59,26 @@ export default function ModalCriarUsuario() {
 
               <div>
                 <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Papel de Acesso</label>
-                <select name="role" defaultValue="CLIENTE" className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none">
+                <select name="role" value={role} onChange={e => setRole(e.target.value)} className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none">
                   <option value="CLIENTE">Cliente — vê só o financeiro dele</option>
-                  <option value="EMPRESA">Empresa — vê o financeiro de todos os clientes</option>
+                  <option value="PERSONALIZADO">Personalizado — permissões configuráveis</option>
                 </select>
                 <p className="text-[10px] text-text-muted mt-1">Depois, vincule este usuário a um cliente em Configurações → Clientes.</p>
               </div>
+
+              {role === 'PERSONALIZADO' && (
+                <div>
+                  <label className="block text-xs font-semibold text-text-muted uppercase mb-2">Permissões</label>
+                  <div className="space-y-2">
+                    {Object.entries(PERMISSOES_LABEL).map(([chave, label]) => (
+                      <label key={chave} className="flex items-center gap-2 text-sm text-foreground">
+                        <input type="checkbox" name="permissoes" value={chave} className="accent-indigo-600" />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Senha Inicial</label>

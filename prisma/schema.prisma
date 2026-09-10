@@ -54,7 +54,8 @@ model EquipeUsuario {
 
 // ==========================================
 // USUÁRIOS
-// role: ADMIN (opera o sistema) | EMPRESA (vê todos os clientes) | CLIENTE (vê só o seu)
+// role: ADMIN (opera o sistema, acesso total) | PERSONALIZADO (permissões
+// individuais, ver UsuarioPermissao) | CLIENTE (vê só o financeiro da própria equipe)
 // ==========================================
 
 model Usuario {
@@ -71,9 +72,23 @@ model Usuario {
   workspace_id       String
 
   equipes            EquipeUsuario[]
+  permissoes         UsuarioPermissao[]
   workspace          Workspace         @relation(fields: [workspace_id], references: [id], map: "Usuario_workspace_id_fkey")
 
   @@map("usuario")
+}
+
+// Permissões individuais de um usuário com role = PERSONALIZADO.
+// Chaves válidas ficam centralizadas em lib/permissoes.ts.
+model UsuarioPermissao {
+  usuario_id String
+  chave      String
+  dt_insert  DateTime @default(now())
+
+  usuario    Usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@id([usuario_id, chave])
+  @@map("usuario_permissao")
 }
 
 // ==========================================

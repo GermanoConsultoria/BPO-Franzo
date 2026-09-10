@@ -5,9 +5,10 @@
 
 export type Recorrencia = 'NAO' | 'DIARIAMENTE' | 'SEMANALMENTE' | 'MENSALMENTE'
 
-/** ADMIN opera o sistema e cadastra tudo. EMPRESA (quem compra o BPO) vê todos os
- * clientes. CLIENTE só vê o financeiro da própria equipe. */
-export type RoleUsuario = 'ADMIN' | 'EMPRESA' | 'CLIENTE'
+/** ADMIN opera o sistema e tem acesso total. PERSONALIZADO tem permissões
+ * individuais (ver UsuarioPermissao / lib/permissoes.ts). CLIENTE só vê o
+ * financeiro da própria equipe. */
+export type RoleUsuario = 'ADMIN' | 'CLIENTE' | 'PERSONALIZADO'
 
 // =============================================================================
 // TIPOS BASE
@@ -32,6 +33,15 @@ export type Usuario = {
   dt_insert: Date | string
   dt_update: Date | string
   // senha nunca é incluída nos tipos de retorno
+  // só presente quando a query faz include: { permissoes: true }
+  permissoes?: UsuarioPermissao[]
+}
+
+/** Permissão individual de um usuário com role = PERSONALIZADO */
+export type UsuarioPermissao = {
+  usuario_id: string
+  chave: string
+  dt_insert: Date | string
 }
 
 /** Cada "equipe" é o financeiro isolado de um cliente */
