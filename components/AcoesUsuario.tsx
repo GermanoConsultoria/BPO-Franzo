@@ -63,19 +63,21 @@ export default function AcoesUsuario({ usuario, permissoesAtuais = [] }: Props) 
           <Key size={18} />
         </button>
 
-        {/* ATIVAR/INATIVAR */}
-        <button
-          onClick={handleToggleStatus}
-          disabled={isPending}
-          className={`p-2 rounded-lg transition-colors border border-transparent flex items-center justify-center w-[36px] h-[36px] ${
-            usuario.ativo
-              ? 'text-red-500 hover:bg-red-500/10 hover:border-red-500/20'
-              : 'text-green-500 hover:bg-green-500/10 hover:border-green-500/20'
-          }`}
-          title={usuario.ativo ? 'Inativar Usuário' : 'Ativar Usuário'}
-        >
-          {isPending ? <Loader2 size={18} className="animate-spin" /> : <Power size={18} />}
-        </button>
+        {/* ATIVAR/INATIVAR (não disponível para Admin) */}
+        {usuario.role !== 'ADMIN' && (
+          <button
+            onClick={handleToggleStatus}
+            disabled={isPending}
+            className={`p-2 rounded-lg transition-colors border border-transparent flex items-center justify-center w-[36px] h-[36px] ${
+              usuario.ativo
+                ? 'text-red-500 hover:bg-red-500/10 hover:border-red-500/20'
+                : 'text-green-500 hover:bg-green-500/10 hover:border-green-500/20'
+            }`}
+            title={usuario.ativo ? 'Inativar Usuário' : 'Ativar Usuário'}
+          >
+            {isPending ? <Loader2 size={18} className="animate-spin" /> : <Power size={18} />}
+          </button>
+        )}
       </div>
 
       <ModalEditarUsuario

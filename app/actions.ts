@@ -195,6 +195,7 @@ export async function toggleStatusUsuario(usuarioAlvoId: string) {
   if (!alvo) return
 
   if (alvo.id === solicitante.id) return
+  if (alvo.role === 'ADMIN') return
 
   await prisma.usuario.update({
     where: { id: usuarioAlvoId },
