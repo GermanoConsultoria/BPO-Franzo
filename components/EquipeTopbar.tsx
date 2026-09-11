@@ -39,6 +39,7 @@ export default function EquipeTopbar({ equipeAtual, minhasEquipes, botaoMenu }: 
       <div className="flex items-center gap-4 w-[220px]">
          {botaoMenu}
          <span className="hidden sm:block text-xl font-bold tracking-wide text-foreground">BPO</span>
+         <div className="hidden sm:block h-6 border-l border-border" />
          <Image
             src="/LOGO-LETICIA-FRAZON.png"
             alt="Letícia Frazon"

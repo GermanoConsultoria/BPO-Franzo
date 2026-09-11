@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: "BPO",
   description: "Gestão financeira multi-cliente",
   icons: {
-    icon: '/favicon.ico',
+    icon: '/LOGO-LETICIA-FRAZON.png',
   }
 };
 

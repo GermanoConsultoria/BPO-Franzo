@@ -28,10 +28,10 @@ export default function LoginPage() {
             <rect width="100%" height="100%" filter="url(#noise)" style={{ mixBlendMode: 'soft-light' }} />
           </svg>
           <Image
-            src="/LOGO-LETICIA-FRAZON.png"
-            alt="Letícia Frazon"
-            width={500}
-            height={500}
+            src="/logo-gtech-sem-fundo.png"
+            alt="G-Tech"
+            width={800}
+            height={800}
             priority
             className="relative z-10 h-24 w-24 object-contain"
           />
@@ -83,10 +83,10 @@ export default function LoginPage() {
 
         <div className="flex justify-center items-center pb-6 shrink-0">
           <Image
-            src="/logo-gtech-sem-fundo.png"
-            alt="G-Tech"
-            width={800}
-            height={800}
+            src="/LOGO-LETICIA-FRAZON.png"
+            alt="Letícia Frazon"
+            width={500}
+            height={500}
             className="h-10 w-10 object-contain opacity-80"
           />
         </div>
