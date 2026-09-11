@@ -16,10 +16,16 @@ export default async function EquipeLayout({
 
   if (!usuario) redirect('/login')
 
+  // PERSONALIZADO sem a permissão "controle financeiro" não acessa nenhuma
+  // aba do financeiro (Balancete/Contas a Pagar/Contas a Receber/Plano de
+  // Contas) — todo esse módulo vive sob /equipe/[equipeId].
+  const podeVerFinanceiro = usuario.role !== 'PERSONALIZADO' || temPermissao(usuario, PERMISSOES.CONTROLE_FINANCEIRO)
+  if (!podeVerFinanceiro) redirect('/')
+
   // ADMIN e PERSONALIZADO com a permissão "ver todos os clientes" enxergam
   // todas as equipes do workspace. CLIENTE só enxerga as equipes das quais é
   // membro (normalmente uma só).
-  const veTodosOsClientes = usuario.role === 'ADMIN'
+  const veTodosOsClientes = usuario.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)
 
   const minhasEquipes = veTodosOsClientes
     ? await prisma.equipe.findMany({ where: { workspace_id: usuario.workspace_id }, orderBy: { nome: 'asc' } })

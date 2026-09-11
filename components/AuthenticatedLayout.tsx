@@ -41,7 +41,10 @@ export default function AuthenticatedLayout({ children, usuario, equipeAtual, mi
 
   // ADMIN e PERSONALIZADO com "ver todos os clientes" navegam entre todos os
   // clientes direto pela sidebar; os demais só veem o cliente atual.
-  const veTodosOsClientes = usuario?.role === 'ADMIN'
+  const veTodosOsClientes = usuario?.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)
+
+  // PERSONALIZADO sem "controle financeiro" não vê nenhuma aba do financeiro.
+  const podeVerFinanceiro = usuario?.role !== 'PERSONALIZADO' || temPermissao(usuario, PERMISSOES.CONTROLE_FINANCEIRO)
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -69,9 +72,10 @@ export default function AuthenticatedLayout({ children, usuario, equipeAtual, mi
                               expanded={isSidebarOpen && equipeExpandida === equipe.id}
                               onToggle={() => setEquipeExpandida(prev => prev === equipe.id ? null : equipe.id)}
                               pathname={pathname}
+                              podeVerFinanceiro={podeVerFinanceiro}
                           />
                       ))
-                  ) : equipeAtual?.id && (
+                  ) : equipeAtual?.id && podeVerFinanceiro && (
                       <>
                           {ITENS_FINANCEIRO.map(item => (
                               <SidebarLink
@@ -117,9 +121,12 @@ interface ClienteMenuGroupProps {
     expanded: boolean
     onToggle: () => void
     pathname: string
+    podeVerFinanceiro: boolean
 }
 
-function ClienteMenuGroup({ equipe, sidebarOpen, expanded, onToggle, pathname }: ClienteMenuGroupProps) {
+function ClienteMenuGroup({ equipe, sidebarOpen, expanded, onToggle, pathname, podeVerFinanceiro }: ClienteMenuGroupProps) {
+    if (!podeVerFinanceiro) return null
+
     const ativoNesteCliente = pathname.startsWith(`/equipe/${equipe.id}/`)
     const iniciais = equipe.nome.substring(0, 2).toUpperCase()
 

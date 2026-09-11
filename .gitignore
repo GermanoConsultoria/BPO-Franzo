@@ -45,3 +45,6 @@ next-env.d.ts
 # Claude Code instructions (local only)
 CLAUDE.md
 .neon
+
+.vercel
+.env*

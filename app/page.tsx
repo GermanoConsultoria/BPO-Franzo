@@ -11,13 +11,14 @@ export default async function Home() {
   const usuario = await getUsuarioLogado()
   if (!usuario) redirect('/login')
 
-  const veTodosOsClientes = usuario.role === 'ADMIN'
+  const veTodosOsClientes = usuario.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)
+  const podeVerFinanceiro = usuario.role !== 'PERSONALIZADO' || temPermissao(usuario, PERMISSOES.CONTROLE_FINANCEIRO)
 
   const minhasEquipes = veTodosOsClientes
     ? await prisma.equipe.findMany({ where: { workspace_id: usuario.workspace_id }, orderBy: { nome: 'asc' } })
     : usuario.equipes.map(e => e.equipe)
 
-  if (minhasEquipes.length === 0) {
+  if (minhasEquipes.length === 0 || !podeVerFinanceiro) {
     return (
       <AuthenticatedLayout
         usuario={usuario as unknown as import('@/types').Usuario}

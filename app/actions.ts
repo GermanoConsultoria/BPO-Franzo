@@ -31,7 +31,7 @@ const schemaEditarUsuario = z.object({
 type UsuarioAcesso = { id: string; role: string; workspace_id: string; permissoes: { chave: string }[] }
 
 async function podeAcessarEquipe(usuario: UsuarioAcesso, equipeId: string): Promise<boolean> {
-  if (usuario.role === 'ADMIN') {
+  if (usuario.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)) {
     const equipe = await prisma.equipe.findFirst({ where: { id: equipeId, workspace_id: usuario.workspace_id } })
     return !!equipe
   }
