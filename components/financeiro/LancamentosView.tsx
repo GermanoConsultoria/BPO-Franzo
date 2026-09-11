@@ -2,9 +2,11 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
-import { Plus, CheckCircle, XCircle, Trash2, Search, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, CheckCircle, XCircle, Trash2, Search, ChevronDown, ChevronLeft, ChevronRight, FileDown } from 'lucide-react'
 import { pagarLancamento, cancelarLancamento, excluirLancamento, excluirEAvancarRecorrencia, excluirGrupoParcelas, excluirParcelasAPartirDesta, getLancamentosFinanceiros } from '@/app/actions'
 import ModalLancamento from '@/components/financeiro/ModalLancamento'
+import ModalPreviewPdf from '@/components/ModalPreviewPdf'
+import { gerarPdfLancamentos } from '@/lib/pdf-lancamentos'
 import type { LancamentoComRelacoes, PlanoContas, TipoLancamento, StatusLancamento } from '@/types'
 
 interface Props {
@@ -125,6 +127,7 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
 
   const montado = useRef(false)
 
@@ -164,8 +167,14 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
     )
   }, [lancamentos, busca])
 
-  const totalPendente = lancamentos.filter(l => l.status === 'PENDENTE').reduce((s, l) => s + Number(l.valor), 0)
+  const somaParciais = (l: LancamentoComRelacoes) => (l.parciais ?? []).reduce((s, p) => s + Number(p.valor), 0)
+  // Pendente = saldo restante (valor - parciais já pagos). Sem parcial, é o valor cheio.
+  const totalPendente = lancamentos
+    .filter(l => l.status === 'PENDENTE')
+    .reduce((s, l) => s + Math.max(0, Number(l.valor) - somaParciais(l)), 0)
+  // Pago/Recebido = lançamentos quitados + a parte já paga dos parciais em aberto.
   const totalPago = lancamentos.filter(l => l.status === 'PAGO').reduce((s, l) => s + Number(l.valor), 0)
+    + lancamentos.filter(l => l.status === 'PENDENTE').reduce((s, l) => s + somaParciais(l), 0)
 
   async function handlePagar() {
     if (!modalPagar) return
@@ -255,6 +264,19 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
     return new Date(l.dt_vencimento) < new Date(hoje)
   }
 
+  const labelPeriodo = filtroMes === 'TODOS'
+    ? 'Todos os meses'
+    : new Date(Number(filtroMes.split('-')[0]), Number(filtroMes.split('-')[1]) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+
+  function handleExportarPdf() {
+    if (lancamentosFiltrados.length === 0) {
+      toast.error('Não há lançamentos para exportar com os filtros atuais.')
+      return
+    }
+    const blob = gerarPdfLancamentos({ lancamentos: lancamentosFiltrados, tipo, labelPeriodo })
+    setPdfBlob(blob)
+  }
+
   return (
     <div className="space-y-4">
       {/* Cards resumo */}
@@ -307,6 +329,12 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
         >
           <Plus size={16} /> {tipo === 'DESPESA' ? 'Nova Despesa' : 'Nova Receita'}
         </button>
+        <button
+          onClick={handleExportarPdf}
+          className="flex items-center gap-2 bg-surface border border-border text-foreground text-sm font-medium px-4 py-2 rounded-lg hover:bg-surface-highlight transition-colors flex-shrink-0"
+        >
+          <FileDown size={16} /> Exportar PDF
+        </button>
       </div>
 
       {/* Tabela */}
@@ -324,6 +352,8 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
                   {tipo === 'DESPESA' && <th className="text-left px-4 py-3">Beneficiário</th>}
                   <th className="text-left px-4 py-3">Categoria</th>
                   <th className="text-right px-4 py-3">Valor</th>
+                  <th className="text-right px-4 py-3">Parciais</th>
+                  <th className="text-right px-4 py-3">Restante</th>
                   <th className="text-center px-4 py-3">Vencimento</th>
                   <th className="text-center px-4 py-3">Pagamento</th>
                   <th className="text-center px-4 py-3">Nº Doc.</th>
@@ -351,6 +381,12 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
                     <td className="px-4 py-3 text-gray-400">{l.plano_contas.nome}</td>
                     <td className={`px-4 py-3 text-right font-semibold ${tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
                       {formatarMoeda(Number(l.valor))}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400">
+                      {somaParciais(l) > 0 ? formatarMoeda(somaParciais(l)) : '—'}
+                    </td>
+                    <td className={`px-4 py-3 text-right font-semibold ${tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {somaParciais(l) > 0 ? formatarMoeda(Math.max(0, Number(l.valor) - somaParciais(l))) : '—'}
                     </td>
                     <td className="px-4 py-3 text-center text-gray-300">{formatarData(l.dt_vencimento)}</td>
                     <td className="px-4 py-3 text-center text-gray-400">
@@ -514,6 +550,14 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal preview PDF */}
+      {pdfBlob && (
+        <ModalPreviewPdf
+          pdfBlob={pdfBlob}
+          onClose={() => setPdfBlob(null)}
+        />
       )}
     </div>
   )

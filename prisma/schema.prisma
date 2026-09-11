@@ -139,6 +139,7 @@ model LancamentoFinanceiro {
   lancamento_pai    LancamentoFinanceiro?  @relation("Parcelas", fields: [lancamento_pai_id], references: [id], onDelete: SetNull)
   parcelas          LancamentoFinanceiro[] @relation("Parcelas")
   anexos            AnexoFinanceiro[]
+  parciais          PagamentoParcial[]
 
   @@index([equipe_id, status])
   @@index([equipe_id, dt_vencimento])
@@ -146,6 +147,20 @@ model LancamentoFinanceiro {
   @@index([grupo_parcela_id])
   @@index([lancamento_pai_id])
   @@map("lancamento_financeiro")
+}
+
+model PagamentoParcial {
+  id            String               @id @default(uuid())
+  lancamento_id String
+  valor         Decimal              @db.Decimal(15, 2)
+  dt_pagamento  DateTime
+  observacao    String?
+  dt_insert     DateTime             @default(now())
+
+  lancamento    LancamentoFinanceiro @relation(fields: [lancamento_id], references: [id], onDelete: Cascade)
+
+  @@index([lancamento_id])
+  @@map("pagamento_parcial")
 }
 
 model AnexoFinanceiro {

@@ -144,9 +144,19 @@ export type AnexoFinanceiro = {
   dt_upload: Date | string
 }
 
+export type PagamentoParcial = {
+  id: string
+  lancamento_id: string
+  valor: number
+  dt_pagamento: Date | string
+  observacao: string | null
+  dt_insert: Date | string
+}
+
 export type LancamentoComRelacoes = LancamentoFinanceiro & {
   plano_contas: PlanoContas
   anexos: AnexoFinanceiro[]
+  parciais: PagamentoParcial[]
   parcelas?: LancamentoFinanceiro[]
 }
 

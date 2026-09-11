@@ -706,6 +706,123 @@ export async function pagarLancamento(id: string, dt_pagamento: string, equipeId
   }
 }
 
+export async function registrarPagamentoParcial(
+  lancamentoId: string,
+  valor: number,
+  dt_pagamento: string,
+  observacao: string | null,
+  equipeId: string,
+): Promise<ActionResult<undefined>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+    if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) {
+      return { success: false, error: 'Sem acesso a este cliente.' }
+    }
+
+    if (typeof valor !== 'number' || isNaN(valor) || valor <= 0) {
+      return { success: false, error: 'Valor do parcial inválido.' }
+    }
+    if (!dt_pagamento) return { success: false, error: 'Data do parcial é obrigatória.' }
+
+    const lancamento = await prisma.lancamentoFinanceiro.findFirst({
+      where: { id: lancamentoId, equipe_id: equipeId },
+      include: { parciais: true },
+    })
+    if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
+    if (lancamento.status === 'CANCELADO') return { success: false, error: 'Lançamento cancelado não aceita parciais.' }
+    if (lancamento.status === 'PAGO') return { success: false, error: 'Lançamento já está quitado.' }
+
+    const total = Number(lancamento.valor)
+    const jaPago = lancamento.parciais.reduce((s, p) => s + Number(p.valor), 0)
+    const restante = Math.round((total - jaPago) * 100) / 100
+    const valorParcial = Math.round(valor * 100) / 100
+
+    if (valorParcial > restante) {
+      return { success: false, error: `O parcial (R$ ${valorParcial.toFixed(2)}) ultrapassa o saldo restante (R$ ${restante.toFixed(2)}).` }
+    }
+
+    await prisma.pagamentoParcial.create({
+      data: {
+        lancamento_id: lancamentoId,
+        valor: valorParcial,
+        dt_pagamento: new Date(dt_pagamento),
+        observacao: observacao?.trim() || null,
+      },
+    })
+
+    const novoTotal = Math.round((jaPago + valorParcial) * 100) / 100
+    if (novoTotal >= total) {
+      await prisma.lancamentoFinanceiro.update({
+        where: { id: lancamentoId },
+        data: { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) },
+      })
+
+      if (lancamento.recorrencia !== 'NAO') {
+        const baseDate = new Date(lancamento.dt_vencimento)
+        let proxData: Date
+        if (lancamento.recorrencia === 'DIARIAMENTE') { proxData = new Date(baseDate); proxData.setDate(proxData.getDate() + 1) }
+        else if (lancamento.recorrencia === 'SEMANALMENTE') { proxData = new Date(baseDate); proxData.setDate(proxData.getDate() + 7) }
+        else { proxData = new Date(baseDate); proxData.setMonth(proxData.getMonth() + 1) }
+
+        await prisma.lancamentoFinanceiro.create({
+          data: {
+            equipe_id: lancamento.equipe_id,
+            tipo: lancamento.tipo,
+            descricao: lancamento.descricao,
+            beneficiario: lancamento.beneficiario,
+            valor: lancamento.valor,
+            dt_vencimento: proxData,
+            numero_documento: lancamento.numero_documento,
+            plano_contas_id: lancamento.plano_contas_id,
+            recorrencia: lancamento.recorrencia,
+            status: 'PENDENTE',
+            lancamento_pai_id: lancamentoId,
+          }
+        })
+      }
+    }
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    return { success: true, data: undefined }
+  } catch {
+    return { success: false, error: 'Erro ao registrar parcial.' }
+  }
+}
+
+export async function excluirPagamentoParcial(parcialId: string, equipeId: string): Promise<ActionResult<undefined>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+    if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) {
+      return { success: false, error: 'Sem acesso a este cliente.' }
+    }
+
+    const parcial = await prisma.pagamentoParcial.findUnique({
+      where: { id: parcialId },
+      include: { lancamento: true },
+    })
+    if (!parcial || parcial.lancamento.equipe_id !== equipeId) {
+      return { success: false, error: 'Parcial não encontrado.' }
+    }
+
+    if (parcial.lancamento.status !== 'PENDENTE') {
+      return { success: false, error: 'Lançamento já quitado ou cancelado — não é possível remover parciais.' }
+    }
+
+    await prisma.pagamentoParcial.delete({ where: { id: parcialId } })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    return { success: true, data: undefined }
+  } catch {
+    return { success: false, error: 'Erro ao remover parcial.' }
+  }
+}
+
 export async function excluirEAvancarRecorrencia(id: string, equipeId: string): Promise<ActionResult<undefined>> {
   try {
     const usuario = await getUsuarioLogado()
@@ -881,10 +998,14 @@ export async function getLancamentosFinanceiros(
 
   const lancamentos = await prisma.lancamentoFinanceiro.findMany({
     where,
-    include: { plano_contas: true, anexos: true },
+    include: { plano_contas: true, anexos: true, parciais: { orderBy: { dt_pagamento: 'asc' } } },
     orderBy: { dt_vencimento: 'asc' },
   })
-  return lancamentos.map(l => ({ ...l, valor: Number(l.valor) }))
+  return lancamentos.map(l => ({
+    ...l,
+    valor: Number(l.valor),
+    parciais: l.parciais.map(p => ({ ...p, valor: Number(p.valor) })),
+  }))
 }
 
 export async function getBalancete(equipeId: string, dataInicio: string, dataFim: string) {
@@ -896,33 +1017,45 @@ export async function getBalancete(equipeId: string, dataInicio: string, dataFim
   const fim = new Date(dataFim)
   fim.setHours(23, 59, 59, 999)
 
-  const [noPeriodo, todosPagos] = await Promise.all([
+  const [noPeriodo, todosPagos, parciaisPendentes] = await Promise.all([
     prisma.lancamentoFinanceiro.findMany({
       where: {
         equipe_id: equipeId,
         status: { not: 'CANCELADO' },
         dt_vencimento: { gte: inicio, lte: fim },
       },
-      include: { plano_contas: true }
+      include: { plano_contas: true, parciais: { select: { valor: true } } }
     }),
     prisma.lancamentoFinanceiro.findMany({
       where: { equipe_id: equipeId, status: 'PAGO' },
       select: { tipo: true, valor: true }
     }),
+    prisma.pagamentoParcial.findMany({
+      where: { lancamento: { equipe_id: equipeId, status: 'PENDENTE' } },
+      select: { valor: true, lancamento: { select: { tipo: true } } }
+    }),
   ])
 
   const toNumber = (v: unknown) => typeof v === 'object' && v !== null && 'toNumber' in v ? (v as { toNumber: () => number }).toNumber() : Number(v)
+  const somaParciais = (l: { parciais?: { valor: unknown }[] }) => (l.parciais ?? []).reduce((s, p) => s + toNumber(p.valor), 0)
 
   const receitas = noPeriodo.filter(l => l.tipo === 'RECEITA').reduce((s, l) => s + toNumber(l.valor), 0)
   const despesas = noPeriodo.filter(l => l.tipo === 'DESPESA').reduce((s, l) => s + toNumber(l.valor), 0)
   const lucro = receitas - despesas
 
-  const saldoReceitas = todosPagos.filter(l => l.tipo === 'RECEITA').reduce((s, l) => s + toNumber(l.valor), 0)
-  const saldoDespesas = todosPagos.filter(l => l.tipo === 'DESPESA').reduce((s, l) => s + toNumber(l.valor), 0)
+  const parciaisRealizadosReceita = parciaisPendentes.filter(p => p.lancamento.tipo === 'RECEITA').reduce((s, p) => s + toNumber(p.valor), 0)
+  const parciaisRealizadosDespesa = parciaisPendentes.filter(p => p.lancamento.tipo === 'DESPESA').reduce((s, p) => s + toNumber(p.valor), 0)
+
+  const saldoReceitas = todosPagos.filter(l => l.tipo === 'RECEITA').reduce((s, l) => s + toNumber(l.valor), 0) + parciaisRealizadosReceita
+  const saldoDespesas = todosPagos.filter(l => l.tipo === 'DESPESA').reduce((s, l) => s + toNumber(l.valor), 0) + parciaisRealizadosDespesa
   const saldo = saldoReceitas - saldoDespesas
 
-  const a_receber = noPeriodo.filter(l => l.tipo === 'RECEITA' && l.status === 'PENDENTE').reduce((s, l) => s + toNumber(l.valor), 0)
-  const a_pagar = noPeriodo.filter(l => l.tipo === 'DESPESA' && l.status === 'PENDENTE').reduce((s, l) => s + toNumber(l.valor), 0)
+  const a_receber = noPeriodo
+    .filter(l => l.tipo === 'RECEITA' && l.status === 'PENDENTE')
+    .reduce((s, l) => s + Math.max(0, toNumber(l.valor) - somaParciais(l)), 0)
+  const a_pagar = noPeriodo
+    .filter(l => l.tipo === 'DESPESA' && l.status === 'PENDENTE')
+    .reduce((s, l) => s + Math.max(0, toNumber(l.valor) - somaParciais(l)), 0)
 
   const receitasPorConta = new Map<string, { nome: string; total: number }>()
   const despesasPorConta = new Map<string, { nome: string; total: number }>()
