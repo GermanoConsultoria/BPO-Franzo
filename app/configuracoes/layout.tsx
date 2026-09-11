@@ -1,21 +1,15 @@
-import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import AuthenticatedLayout from '@/components/AuthenticatedLayout'
 import { PERMISSOES, temPermissao } from '@/lib/permissoes'
+import { getUsuarioLogado } from '@/lib/usuario-logado'
 
 export default async function ConfiguracoesLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const session = await auth()
-  if (!session?.user?.email) redirect('/login')
-
-  const usuario = await prisma.usuario.findUnique({
-    where: { email: session.user.email },
-    include: { equipes: { include: { equipe: true } }, permissoes: true }
-  })
+  const usuario = await getUsuarioLogado()
 
   if (!usuario) redirect('/login')
   const acessaConfiguracoes = usuario.role === 'ADMIN'
