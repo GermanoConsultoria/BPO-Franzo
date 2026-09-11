@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import Image from 'next/image'
 import { ChevronDown, Globe } from 'lucide-react'
 import type { EquipeBasica } from '@/types'
 
@@ -38,6 +39,13 @@ export default function EquipeTopbar({ equipeAtual, minhasEquipes, botaoMenu }: 
       <div className="flex items-center gap-4 w-[220px]">
          {botaoMenu}
          <span className="hidden sm:block text-xl font-bold tracking-wide text-foreground">BPO</span>
+         <Image
+            src="/LOGO-LETICIA-FRAZON.png"
+            alt="Letícia Frazon"
+            width={500}
+            height={500}
+            className="hidden sm:block h-9 w-9 object-contain"
+         />
       </div>
 
       {/* 2. Área Contextual (Global vs Equipe) */}

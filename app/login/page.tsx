@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { authenticate } from '@/app/actions'
@@ -26,7 +27,14 @@ export default function LoginPage() {
             </filter>
             <rect width="100%" height="100%" filter="url(#noise)" style={{ mixBlendMode: 'soft-light' }} />
           </svg>
-          <span className="relative z-10 text-4xl font-bold tracking-wide text-white">BPO</span>
+          <Image
+            src="/LOGO-LETICIA-FRAZON.png"
+            alt="Letícia Frazon"
+            width={500}
+            height={500}
+            priority
+            className="relative z-10 h-24 w-24 object-contain"
+          />
         </div>
 
         {/* FORMULÁRIO (COM SCROLL INTERNO SE NECESSÁRIO) */}
@@ -72,6 +80,16 @@ export default function LoginPage() {
             <LoginButton />
           </div>
         </form>
+
+        <div className="flex justify-center items-center pb-6 shrink-0">
+          <Image
+            src="/logo-gtech-sem-fundo.png"
+            alt="G-Tech"
+            width={800}
+            height={800}
+            className="h-10 w-10 object-contain opacity-80"
+          />
+        </div>
 
       </div>
     </div>
