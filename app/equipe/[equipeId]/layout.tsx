@@ -19,7 +19,7 @@ export default async function EquipeLayout({
   // ADMIN e PERSONALIZADO com a permissão "ver todos os clientes" enxergam
   // todas as equipes do workspace. CLIENTE só enxerga as equipes das quais é
   // membro (normalmente uma só).
-  const veTodosOsClientes = usuario.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)
+  const veTodosOsClientes = usuario.role === 'ADMIN'
 
   const minhasEquipes = veTodosOsClientes
     ? await prisma.equipe.findMany({ where: { workspace_id: usuario.workspace_id }, orderBy: { nome: 'asc' } })

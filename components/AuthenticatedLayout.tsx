@@ -41,7 +41,7 @@ export default function AuthenticatedLayout({ children, usuario, equipeAtual, mi
 
   // ADMIN e PERSONALIZADO com "ver todos os clientes" navegam entre todos os
   // clientes direto pela sidebar; os demais só veem o cliente atual.
-  const veTodosOsClientes = usuario?.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)
+  const veTodosOsClientes = usuario?.role === 'ADMIN'
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">

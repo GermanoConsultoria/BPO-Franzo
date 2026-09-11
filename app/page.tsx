@@ -11,7 +11,7 @@ export default async function Home() {
   const usuario = await getUsuarioLogado()
   if (!usuario) redirect('/login')
 
-  const veTodosOsClientes = usuario.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)
+  const veTodosOsClientes = usuario.role === 'ADMIN'
 
   const minhasEquipes = veTodosOsClientes
     ? await prisma.equipe.findMany({ where: { workspace_id: usuario.workspace_id }, orderBy: { nome: 'asc' } })

@@ -17,7 +17,7 @@ export default async function ConfiguracoesLayout({
     || temPermissao(usuario, PERMISSOES.GERENCIAR_EQUIPES)
   if (!acessaConfiguracoes) redirect('/')
 
-  const minhasEquipes = (usuario.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES))
+  const minhasEquipes = (usuario.role === 'ADMIN')
     ? await prisma.equipe.findMany({ where: { workspace_id: usuario.workspace_id }, orderBy: { nome: 'asc' } })
     : usuario.equipes.map(e => e.equipe)
 

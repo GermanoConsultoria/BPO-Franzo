@@ -1,5 +1,4 @@
 export const PERMISSOES = {
-  VER_TODOS_CLIENTES: 'ver_todos_clientes',
   GERENCIAR_USUARIOS: 'gerenciar_usuarios',
   GERENCIAR_EQUIPES: 'gerenciar_equipes',
   EDITAR_LANCAMENTOS: 'editar_lancamentos',
@@ -8,7 +7,6 @@ export const PERMISSOES = {
 export type PermissaoChave = typeof PERMISSOES[keyof typeof PERMISSOES]
 
 export const PERMISSOES_LABEL: Record<PermissaoChave, string> = {
-  ver_todos_clientes: 'Ver todos os clientes',
   gerenciar_usuarios: 'Gerenciar usuários',
   gerenciar_equipes: 'Gerenciar equipes/clientes',
   editar_lancamentos: 'Editar lançamentos financeiros',
