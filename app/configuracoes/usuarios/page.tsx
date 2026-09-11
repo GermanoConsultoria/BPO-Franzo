@@ -35,7 +35,7 @@ export default async function GestaoUsuariosPage() {
           <thead className="bg-surface-highlight border-b border-border">
             <tr>
               <th className="px-6 py-4 font-semibold text-text-muted">Nome</th>
-              <th className="px-6 py-4 font-semibold text-text-muted">Cargo</th>
+              <th className="px-6 py-4 font-semibold text-text-muted">CNPJ</th>
               <th className="px-6 py-4 font-semibold text-text-muted">Papel</th>
               <th className="px-6 py-4 font-semibold text-text-muted">Status</th>
               <th className="px-6 py-4 font-semibold text-text-muted text-right">Ações</th>
@@ -55,7 +55,7 @@ export default async function GestaoUsuariosPage() {
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-text-muted">{u.cargo || '-'}</td>
+                <td className="px-6 py-4 text-text-muted">{u.cnpj || '-'}</td>
                 <td className="px-6 py-4 text-text-muted">{ROLE_LABEL[u.role] ?? u.role}</td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${

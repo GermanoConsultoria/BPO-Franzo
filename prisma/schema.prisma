@@ -67,7 +67,7 @@ model Usuario {
   senha              String
   dt_insert          DateTime          @default(now())
   ativo              Boolean           @default(true)
-  cargo              String?
+  cnpj               String?
   dt_update          DateTime          @default(now()) @updatedAt
   imagem             String?
   role               String            @default("CLIENTE")

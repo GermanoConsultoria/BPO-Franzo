@@ -8,7 +8,7 @@ import { PERMISSOES_LABEL } from '@/lib/permissoes'
 interface Props {
   isOpen: boolean
   onClose: () => void
-  usuario: { id: string; nome: string; email?: string; cargo?: string | null; role?: string }
+  usuario: { id: string; nome: string; email?: string; cnpj?: string | null; role?: string }
   permissoesAtuais?: string[]
 }
 
@@ -56,8 +56,8 @@ export default function ModalEditarUsuario({ isOpen, onClose, usuario, permissoe
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Cargo</label>
-            <input name="cargo" defaultValue={usuario.cargo ?? ''} className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: Financeiro" />
+            <label className="block text-xs font-semibold text-text-muted uppercase mb-1">CNPJ (opcional)</label>
+            <input name="cnpj" defaultValue={usuario.cnpj ?? ''} className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="00.000.000/0000-00" />
           </div>
 
           {isAdmin ? (

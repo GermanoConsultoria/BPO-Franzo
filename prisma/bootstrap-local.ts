@@ -15,7 +15,6 @@ async function main() {
       nome: 'Admin',
       email: 'admin@local.test',
       senha: senhaHash,
-      cargo: 'Administrador',
       role: 'ADMIN',
       ativo: true,
       workspace_id: workspace.id,

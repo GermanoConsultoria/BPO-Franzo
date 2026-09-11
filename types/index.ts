@@ -26,7 +26,7 @@ export type Usuario = {
   nome: string
   email: string
   ativo: boolean
-  cargo: string | null
+  cnpj: string | null
   imagem: string | null
   role: RoleUsuario
   workspace_id: string
@@ -68,7 +68,7 @@ export type EquipeUsuario = {
 // =============================================================================
 
 /** Versão mínima de Usuário para exibição em listas e selects */
-export type UsuarioBasico = Pick<Usuario, 'id' | 'nome' | 'imagem' | 'cargo'>
+export type UsuarioBasico = Pick<Usuario, 'id' | 'nome' | 'imagem' | 'cnpj'>
 
 /** Membro de equipe com dados do usuário */
 export type EquipeUsuarioComUsuario = EquipeUsuario & {

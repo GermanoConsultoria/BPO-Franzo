@@ -13,7 +13,7 @@ interface Props {
     nome: string
     ativo: boolean
     email?: string
-    cargo?: string | null
+    cnpj?: string | null
     role?: string
   }
   permissoesAtuais?: string[]

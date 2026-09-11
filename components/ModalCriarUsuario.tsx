@@ -53,8 +53,8 @@ export default function ModalCriarUsuario() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Cargo</label>
-                <input name="cargo" className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: Financeiro" />
+                <label className="block text-xs font-semibold text-text-muted uppercase mb-1">CNPJ (opcional)</label>
+                <input name="cnpj" className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="00.000.000/0000-00" />
               </div>
 
               <div>

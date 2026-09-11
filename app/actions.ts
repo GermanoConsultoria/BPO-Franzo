@@ -16,13 +16,13 @@ const schemaCriarUsuario = z.object({
   nome: z.string().min(2, 'Nome deve ter ao menos 2 caracteres.').max(100),
   email: z.string().email('E-mail inválido.'),
   senha: z.string().min(6, 'Senha deve ter ao menos 6 caracteres.'),
-  cargo: z.string().max(100).optional(),
+  cnpj: z.string().max(18).optional(),
 })
 
 const schemaEditarUsuario = z.object({
   nome: z.string().min(2, 'Nome deve ter ao menos 2 caracteres.').max(100),
   email: z.string().email('E-mail inválido.'),
-  cargo: z.string().max(100).optional(),
+  cnpj: z.string().max(18).optional(),
 })
 
 // Papéis de acesso do BPO: ADMIN (nós, operamos o sistema, acesso total) >
@@ -81,7 +81,7 @@ export async function getUsuariosDoWorkspace() {
     orderBy: { nome: 'asc' },
     select: {
       id: true, nome: true, email: true, dt_insert: true, ativo: true,
-      cargo: true, dt_update: true, imagem: true, role: true, workspace_id: true,
+      cnpj: true, dt_update: true, imagem: true, role: true, workspace_id: true,
       permissoes: true,
     }
   })
@@ -97,7 +97,7 @@ export async function criarNovoUsuario(formData: FormData) {
   const nome = formData.get('nome') as string
   const email = formData.get('email') as string
   const senha = formData.get('senha') as string
-  const cargo = formData.get('cargo') as string
+  const cnpj = formData.get('cnpj') as string
   let role = formData.get('role') as string
   if (role !== 'PERSONALIZADO' && role !== 'ADMIN') role = 'CLIENTE'
 
@@ -106,7 +106,7 @@ export async function criarNovoUsuario(formData: FormData) {
     ? formData.getAll('permissoes').filter((c): c is string => typeof c === 'string' && chavesValidas.includes(c))
     : []
 
-  const validacao = schemaCriarUsuario.safeParse({ nome, email, senha, cargo })
+  const validacao = schemaCriarUsuario.safeParse({ nome, email, senha, cnpj })
   if (!validacao.success) {
     return { erro: validacao.error.issues[0].message }
   }
@@ -121,7 +121,7 @@ export async function criarNovoUsuario(formData: FormData) {
       nome,
       email,
       senha: senhaHash,
-      cargo: cargo || undefined,
+      cnpj: cnpj || undefined,
       role,
       ativo: true,
       workspace_id: solicitante.workspace_id!
@@ -150,14 +150,14 @@ export async function atualizarUsuario(formData: FormData) {
 
   const nome = formData.get('nome') as string
   const email = formData.get('email') as string
-  const cargo = formData.get('cargo') as string
+  const cnpj = formData.get('cnpj') as string
   let role = formData.get('role') as string
   if (role !== 'PERSONALIZADO' && role !== 'ADMIN') role = 'CLIENTE'
   // Role ADMIN só pode ser mantido, nunca concedido por este formulário
   // (o modal só envia "ADMIN" quando o alvo já é admin).
   if (role === 'ADMIN' && usuarioAlvo.role !== 'ADMIN') role = 'CLIENTE'
 
-  const validacao = schemaEditarUsuario.safeParse({ nome, email, cargo })
+  const validacao = schemaEditarUsuario.safeParse({ nome, email, cnpj })
   if (!validacao.success) {
     return { erro: validacao.error.issues[0].message }
   }
@@ -175,7 +175,7 @@ export async function atualizarUsuario(formData: FormData) {
   await prisma.$transaction([
     prisma.usuario.update({
       where: { id: usuarioId },
-      data: { nome, email, cargo: cargo || null, role },
+      data: { nome, email, cnpj: cnpj || null, role },
     }),
     prisma.usuarioPermissao.deleteMany({ where: { usuario_id: usuarioId } }),
     ...(permissoesSelecionadas.length > 0

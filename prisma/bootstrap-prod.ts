@@ -15,7 +15,6 @@ async function main() {
       nome: 'Admin',
       email: 'admin@bpo.com',
       senha: senhaHash,
-      cargo: 'Administrador',
       role: 'ADMIN',
       ativo: true,
       workspace_id: workspace.id,
