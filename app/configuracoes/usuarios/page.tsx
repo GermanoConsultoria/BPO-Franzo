@@ -72,9 +72,7 @@ export default async function GestaoUsuariosPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">
-                   {u.role !== 'ADMIN' && (
-                      <AcoesUsuario usuario={u} permissoesAtuais={u.permissoes.map(p => p.chave)} />
-                   )}
+                   <AcoesUsuario usuario={u} permissoesAtuais={u.permissoes.map(p => p.chave)} />
                 </td>
               </tr>
             ))}

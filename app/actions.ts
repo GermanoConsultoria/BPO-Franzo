@@ -155,13 +155,15 @@ export async function atualizarUsuario(formData: FormData) {
   const usuarioId = formData.get('usuarioId') as string
   const usuarioAlvo = await prisma.usuario.findUnique({ where: { id: usuarioId } })
   if (!usuarioAlvo) return { erro: 'Usuário não encontrado.' }
-  if (usuarioAlvo.role === 'ADMIN') return { erro: 'Não é possível editar um administrador por aqui.' }
 
   const nome = formData.get('nome') as string
   const email = formData.get('email') as string
   const cargo = formData.get('cargo') as string
   let role = formData.get('role') as string
   if (role !== 'PERSONALIZADO' && role !== 'ADMIN') role = 'CLIENTE'
+  // Role ADMIN só pode ser mantido, nunca concedido por este formulário
+  // (o modal só envia "ADMIN" quando o alvo já é admin).
+  if (role === 'ADMIN' && usuarioAlvo.role !== 'ADMIN') role = 'CLIENTE'
 
   const validacao = schemaEditarUsuario.safeParse({ nome, email, cargo })
   if (!validacao.success) {

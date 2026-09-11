@@ -13,6 +13,7 @@ interface Props {
 }
 
 export default function ModalEditarUsuario({ isOpen, onClose, usuario, permissoesAtuais = [] }: Props) {
+  const isAdmin = usuario.role === 'ADMIN'
   const [role, setRole] = useState(usuario.role === 'PERSONALIZADO' ? 'PERSONALIZADO' : 'CLIENTE')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -59,15 +60,25 @@ export default function ModalEditarUsuario({ isOpen, onClose, usuario, permissoe
             <input name="cargo" defaultValue={usuario.cargo ?? ''} className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: Financeiro" />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Papel de Acesso</label>
-            <select name="role" value={role} onChange={e => setRole(e.target.value)} className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none">
-              <option value="CLIENTE">Cliente — vê só o financeiro dele</option>
-              <option value="PERSONALIZADO">Personalizado — permissões configuráveis</option>
-            </select>
-          </div>
+          {isAdmin ? (
+            <div>
+              <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Papel de Acesso</label>
+              <input type="hidden" name="role" value="ADMIN" />
+              <div className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-text-muted text-sm">
+                Administrador — opera o sistema com acesso total
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Papel de Acesso</label>
+              <select name="role" value={role} onChange={e => setRole(e.target.value)} className="w-full bg-surface-highlight border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-indigo-500 outline-none">
+                <option value="CLIENTE">Cliente — vê só o financeiro dele</option>
+                <option value="PERSONALIZADO">Personalizado — permissões configuráveis</option>
+              </select>
+            </div>
+          )}
 
-          {role === 'PERSONALIZADO' && (
+          {!isAdmin && role === 'PERSONALIZADO' && (
             <div>
               <label className="block text-xs font-semibold text-text-muted uppercase mb-2">Permissões</label>
               <div className="space-y-2">
