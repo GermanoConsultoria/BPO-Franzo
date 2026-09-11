@@ -11,16 +11,17 @@ export default async function ContasAPagarPage({ params }: { params: Promise<{ e
 
   const { equipeId } = await params
 
-  const lancamentos = await prisma.lancamentoFinanceiro.findMany({
-    where: { equipe_id: equipeId, tipo: 'DESPESA' },
-    include: { plano_contas: true, anexos: true },
-    orderBy: { dt_vencimento: 'asc' },
-  })
-
-  const planoContas = await prisma.planoContas.findMany({
-    where: { equipe_id: equipeId, tipo: 'DESPESA', ativo: true },
-    orderBy: { nome: 'asc' },
-  })
+  const [lancamentos, planoContas] = await Promise.all([
+    prisma.lancamentoFinanceiro.findMany({
+      where: { equipe_id: equipeId, tipo: 'DESPESA' },
+      include: { plano_contas: true, anexos: true },
+      orderBy: { dt_vencimento: 'asc' },
+    }),
+    prisma.planoContas.findMany({
+      where: { equipe_id: equipeId, tipo: 'DESPESA', ativo: true },
+      orderBy: { nome: 'asc' },
+    }),
+  ])
 
   const lancamentosSerializados = lancamentos.map(l => ({ ...l, valor: Number(l.valor) }))
 

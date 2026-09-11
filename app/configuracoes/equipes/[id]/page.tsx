@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Settings, Users } from 'lucide-react'
@@ -10,6 +9,7 @@ import {
 } from '@/app/actions'
 import BotaoExcluirEquipe from '@/components/BotaoExcluirEquipe'
 import { PERMISSOES, temPermissao } from '@/lib/permissoes'
+import { getUsuarioLogado } from '@/lib/usuario-logado'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,10 +21,7 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default async function DetalhesClientePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await auth()
-  if (!session?.user?.email) redirect('/login')
-
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const usuarioLogado = await getUsuarioLogado()
   if (!usuarioLogado || !temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)) redirect('/')
 
   const equipe = await prisma.equipe.findUnique({

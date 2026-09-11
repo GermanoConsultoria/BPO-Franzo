@@ -2,7 +2,8 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { auth, signIn } from '@/auth'
+import { signIn } from '@/auth'
+import { getUsuarioLogado } from '@/lib/usuario-logado'
 import { AuthError } from 'next-auth'
 import bcrypt from 'bcryptjs'
 import { UTApi } from "uploadthing/server"
@@ -71,10 +72,7 @@ export async function authenticate(
 // --- GESTÃO DE USUÁRIOS (ADMIN) ---
 
 export async function getUsuariosDoWorkspace() {
-  const session = await auth()
-  if (!session?.user?.email) return []
-
-  const solicitante = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const solicitante = await getUsuarioLogado()
 
   if (!solicitante || !temPermissao(solicitante, PERMISSOES.GERENCIAR_USUARIOS)) return []
 
@@ -90,10 +88,7 @@ export async function getUsuariosDoWorkspace() {
 }
 
 export async function criarNovoUsuario(formData: FormData) {
-  const session = await auth()
-  if (!session?.user?.email) return { erro: 'Sem permissão' }
-
-  const solicitante = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const solicitante = await getUsuarioLogado()
 
   if (!solicitante || !temPermissao(solicitante, PERMISSOES.GERENCIAR_USUARIOS)) {
     return { erro: 'Você não tem permissão para criar usuários.' }
@@ -144,10 +139,7 @@ export async function criarNovoUsuario(formData: FormData) {
 }
 
 export async function atualizarUsuario(formData: FormData) {
-  const session = await auth()
-  if (!session?.user?.email) return { erro: 'Sem permissão' }
-
-  const solicitante = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const solicitante = await getUsuarioLogado()
   if (!solicitante || !temPermissao(solicitante, PERMISSOES.GERENCIAR_USUARIOS)) {
     return { erro: 'Você não tem permissão para editar usuários.' }
   }
@@ -196,10 +188,7 @@ export async function atualizarUsuario(formData: FormData) {
 }
 
 export async function toggleStatusUsuario(usuarioAlvoId: string) {
-  const session = await auth()
-  if (!session?.user?.email) return
-
-  const solicitante = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const solicitante = await getUsuarioLogado()
   if (!solicitante || !temPermissao(solicitante, PERMISSOES.GERENCIAR_USUARIOS)) return
 
   const alvo = await prisma.usuario.findUnique({ where: { id: usuarioAlvoId } })
@@ -216,9 +205,7 @@ export async function toggleStatusUsuario(usuarioAlvoId: string) {
 }
 
 export async function alterarSenhaUsuario(usuarioId: string, novaSenha: string) {
-  const session = await auth()
-
-  const solicitante = await prisma.usuario.findUnique({ where: { email: session?.user?.email || '' }, include: { permissoes: true } })
+  const solicitante = await getUsuarioLogado()
   if (!temPermissao(solicitante, PERMISSOES.GERENCIAR_USUARIOS)) {
       throw new Error("Você não tem permissão para alterar senhas.")
   }
@@ -239,10 +226,7 @@ export async function alterarSenhaUsuario(usuarioId: string, novaSenha: string) 
 }
 
 export async function atualizarPermissoesUsuario(usuarioId: string, chaves: string[]): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
-  const solicitante = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const solicitante = await getUsuarioLogado()
   if (!solicitante || !temPermissao(solicitante, PERMISSOES.GERENCIAR_USUARIOS)) {
     return { success: false, error: 'Você não tem permissão para gerenciar usuários.' }
   }
@@ -270,10 +254,7 @@ export async function atualizarPermissoesUsuario(usuarioId: string, chaves: stri
 // --- GESTÃO DE CLIENTES (cadastro de "equipes", cada uma é o financeiro de um cliente) ---
 
 export async function criarEquipe(formData: FormData) {
-  const session = await auth()
-  if (!session?.user?.email) return
-
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const usuarioLogado = await getUsuarioLogado()
   if (!usuarioLogado || !temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)) return
 
   const nome = formData.get('nome') as string
@@ -299,10 +280,7 @@ export async function criarEquipe(formData: FormData) {
 }
 
 export async function atualizarNomeEquipe(equipeId: string, novoNome: string) {
-  const session = await auth()
-  if (!session?.user?.email) return
-
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const usuarioLogado = await getUsuarioLogado()
   if (!usuarioLogado || !temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)) return
 
   if (!equipeId || !novoNome) return
@@ -315,10 +293,7 @@ export async function atualizarNomeEquipe(equipeId: string, novoNome: string) {
 }
 
 export async function adicionarMembroEquipe(formData: FormData) {
-  const session = await auth()
-  if (!session?.user?.email) return
-
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const usuarioLogado = await getUsuarioLogado()
   if (!usuarioLogado || !temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)) return
 
   const equipeId = formData.get('equipeId') as string
@@ -344,10 +319,7 @@ export async function adicionarMembroEquipe(formData: FormData) {
 }
 
 export async function removerMembroEquipe(formData: FormData) {
-  const session = await auth()
-  if (!session?.user?.email) return
-
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const usuarioLogado = await getUsuarioLogado()
   if (!usuarioLogado || !temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)) return
 
   const equipeId = formData.get('equipeId') as string
@@ -362,10 +334,7 @@ export async function removerMembroEquipe(formData: FormData) {
 }
 
 export async function excluirEquipe(equipeId: string) {
-  const session = await auth()
-  if (!session?.user?.email) return { erro: 'Sem permissão' }
-
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const usuarioLogado = await getUsuarioLogado()
   if (!usuarioLogado || !temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)) return { erro: 'Você não tem permissão para excluir clientes.' }
 
   const planos = await prisma.planoContas.findMany({ where: { equipe_id: equipeId }, select: { id: true } })
@@ -400,11 +369,8 @@ export async function excluirEquipe(equipeId: string) {
 // --- PLANO DE CONTAS ---
 
 export async function criarPlanoContas(formData: FormData): Promise<ActionResult<import('@prisma/client').PlanoContas>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
 
     const equipeId = formData.get('equipeId') as string
@@ -430,11 +396,8 @@ export async function criarPlanoContas(formData: FormData): Promise<ActionResult
 }
 
 export async function editarPlanoContas(formData: FormData): Promise<ActionResult<import('@prisma/client').PlanoContas>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
 
     const equipeId = formData.get('equipeId') as string
@@ -464,11 +427,8 @@ export async function editarPlanoContas(formData: FormData): Promise<ActionResul
 }
 
 export async function excluirPlanoContas(id: string, equipeId: string): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -488,11 +448,8 @@ export async function excluirPlanoContas(id: string, equipeId: string): Promise<
 }
 
 export async function toggleAtivoPlanoContas(id: string, equipeId: string): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -511,11 +468,8 @@ export async function toggleAtivoPlanoContas(id: string, equipeId: string): Prom
 // --- LANÇAMENTOS FINANCEIROS ---
 
 export async function criarLancamento(formData: FormData): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
 
     const equipeId = formData.get('equipeId') as string
@@ -590,11 +544,8 @@ export async function criarLancamento(formData: FormData): Promise<ActionResult<
 }
 
 export async function editarLancamento(formData: FormData): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
 
     const equipeId = formData.get('equipeId') as string
@@ -640,11 +591,8 @@ export async function editarLancamento(formData: FormData): Promise<ActionResult
 }
 
 export async function excluirGrupoParcelas(grupo_parcela_id: string, equipeId: string): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -666,11 +614,8 @@ export async function excluirGrupoParcelas(grupo_parcela_id: string, equipeId: s
 }
 
 export async function excluirParcelasAPartirDesta(id: string, equipeId: string): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -706,11 +651,8 @@ export async function excluirParcelasAPartirDesta(id: string, equipeId: string):
 }
 
 export async function pagarLancamento(id: string, dt_pagamento: string, equipeId: string): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -764,11 +706,8 @@ export async function pagarLancamento(id: string, dt_pagamento: string, equipeId
 }
 
 export async function excluirEAvancarRecorrencia(id: string, equipeId: string): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -814,11 +753,8 @@ export async function excluirEAvancarRecorrencia(id: string, equipeId: string): 
 }
 
 export async function cancelarLancamento(id: string, equipeId: string): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -837,11 +773,8 @@ export async function cancelarLancamento(id: string, equipeId: string): Promise<
 }
 
 export async function excluirLancamento(id: string, equipeId: string): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -868,11 +801,8 @@ export async function salvarAnexoFinanceiro(dados: {
   key: string
   tamanho: number
 }): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, dados.equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -897,11 +827,8 @@ export async function salvarAnexoFinanceiro(dados: {
 }
 
 export async function excluirAnexoFinanceiro(anexoId: string, equipeId: string): Promise<ActionResult<undefined>> {
-  const session = await auth()
-  if (!session?.user?.email) return { success: false, error: 'Não autenticado.' }
-
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+    const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
@@ -927,9 +854,7 @@ export async function getLancamentosFinanceiros(
   tipo: 'DESPESA' | 'RECEITA',
   filtros?: { dataInicio?: string; dataFim?: string; status?: string; plano_contas_id?: string }
 ) {
-  const session = await auth()
-  if (!session?.user?.email) return []
-  const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const usuario = await getUsuarioLogado()
   if (!usuario) return []
   if (!(await podeAcessarEquipe(usuario, equipeId))) return []
 
@@ -962,10 +887,7 @@ export async function getLancamentosFinanceiros(
 }
 
 export async function getBalancete(equipeId: string, dataInicio: string, dataFim: string) {
-  const session = await auth()
-  if (!session?.user?.email) return null
-
-  const usuario = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const usuario = await getUsuarioLogado()
   if (!usuario) return null
   if (!(await podeAcessarEquipe(usuario, equipeId))) return null
 
@@ -973,19 +895,20 @@ export async function getBalancete(equipeId: string, dataInicio: string, dataFim
   const fim = new Date(dataFim)
   fim.setHours(23, 59, 59, 999)
 
-  const noPeriodo = await prisma.lancamentoFinanceiro.findMany({
-    where: {
-      equipe_id: equipeId,
-      status: { not: 'CANCELADO' },
-      dt_vencimento: { gte: inicio, lte: fim },
-    },
-    include: { plano_contas: true }
-  })
-
-  const todosPagos = await prisma.lancamentoFinanceiro.findMany({
-    where: { equipe_id: equipeId, status: 'PAGO' },
-    select: { tipo: true, valor: true }
-  })
+  const [noPeriodo, todosPagos] = await Promise.all([
+    prisma.lancamentoFinanceiro.findMany({
+      where: {
+        equipe_id: equipeId,
+        status: { not: 'CANCELADO' },
+        dt_vencimento: { gte: inicio, lte: fim },
+      },
+      include: { plano_contas: true }
+    }),
+    prisma.lancamentoFinanceiro.findMany({
+      where: { equipe_id: equipeId, status: 'PAGO' },
+      select: { tipo: true, valor: true }
+    }),
+  ])
 
   const toNumber = (v: unknown) => typeof v === 'object' && v !== null && 'toNumber' in v ? (v as { toNumber: () => number }).toNumber() : Number(v)
 

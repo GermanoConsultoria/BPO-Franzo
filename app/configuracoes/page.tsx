@@ -1,18 +1,16 @@
 import Link from 'next/link'
 import { Users, Building2, ChevronRight } from 'lucide-react'
-import { auth } from '@/auth'
-import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { PERMISSOES, temPermissao } from '@/lib/permissoes'
+import { getUsuarioLogado } from '@/lib/usuario-logado'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ConfiguracoesHubPage() {
-  const session = await auth()
-  if (!session?.user?.email) redirect('/login')
+  const usuarioLogado = await getUsuarioLogado()
+  if (!usuarioLogado) redirect('/login')
 
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
-  const acessaConfiguracoes = usuarioLogado?.role === 'ADMIN'
+  const acessaConfiguracoes = usuarioLogado.role === 'ADMIN'
     || temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_USUARIOS)
     || temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_EQUIPES)
   if (!acessaConfiguracoes) redirect('/')

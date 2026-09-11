@@ -36,6 +36,7 @@ model Equipe {
   planoContas  PlanoContas[]
   lancamentos  LancamentoFinanceiro[]
 
+  @@index([workspace_id])
   @@map("equipe")
 }
 
@@ -49,6 +50,7 @@ model EquipeUsuario {
   usuario    Usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
 
   @@id([equipe_id, usuario_id])
+  @@index([usuario_id])
   @@map("equipe_usuario")
 }
 
@@ -75,6 +77,7 @@ model Usuario {
   permissoes         UsuarioPermissao[]
   workspace          Workspace         @relation(fields: [workspace_id], references: [id], map: "Usuario_workspace_id_fkey")
 
+  @@index([workspace_id])
   @@map("usuario")
 }
 
@@ -107,6 +110,7 @@ model PlanoContas {
   equipe       Equipe                 @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
   lancamentos  LancamentoFinanceiro[]
 
+  @@index([equipe_id])
   @@map("plano_contas")
 }
 
@@ -136,6 +140,11 @@ model LancamentoFinanceiro {
   parcelas          LancamentoFinanceiro[] @relation("Parcelas")
   anexos            AnexoFinanceiro[]
 
+  @@index([equipe_id, status])
+  @@index([equipe_id, dt_vencimento])
+  @@index([plano_contas_id])
+  @@index([grupo_parcela_id])
+  @@index([lancamento_pai_id])
   @@map("lancamento_financeiro")
 }
 
@@ -150,6 +159,7 @@ model AnexoFinanceiro {
 
   lancamento    LancamentoFinanceiro @relation(fields: [lancamento_id], references: [id], onDelete: Cascade)
 
+  @@index([lancamento_id])
   @@map("anexo_financeiro")
 }
 

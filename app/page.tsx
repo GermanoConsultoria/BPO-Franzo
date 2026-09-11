@@ -1,20 +1,14 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import AuthenticatedLayout from '@/components/AuthenticatedLayout'
 import { PERMISSOES, temPermissao } from '@/lib/permissoes'
+import { getUsuarioLogado } from '@/lib/usuario-logado'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function Home() {
-  const session = await auth()
-  if (!session?.user?.email) redirect('/login')
-
-  const usuario = await prisma.usuario.findUnique({
-    where: { email: session.user.email },
-    include: { equipes: { include: { equipe: true } }, permissoes: true }
-  })
+  const usuario = await getUsuarioLogado()
   if (!usuario) redirect('/login')
 
   const veTodosOsClientes = usuario.role === 'ADMIN' || temPermissao(usuario, PERMISSOES.VER_TODOS_CLIENTES)

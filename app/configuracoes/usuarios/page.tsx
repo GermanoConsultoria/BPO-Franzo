@@ -1,10 +1,9 @@
 import { getUsuariosDoWorkspace } from '@/app/actions'
-import { prisma } from '@/lib/prisma'
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import BotaoCriarUsuario from '@/components/ModalCriarUsuario'
 import AcoesUsuario from '@/components/AcoesUsuario'
 import { PERMISSOES, temPermissao } from '@/lib/permissoes'
+import { getUsuarioLogado } from '@/lib/usuario-logado'
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Admin',
@@ -13,11 +12,7 @@ const ROLE_LABEL: Record<string, string> = {
 }
 
 export default async function GestaoUsuariosPage() {
-  const session = await auth()
-
-  if (!session?.user?.email) redirect('/')
-
-  const usuarioLogado = await prisma.usuario.findUnique({ where: { email: session.user.email }, include: { permissoes: true } })
+  const usuarioLogado = await getUsuarioLogado()
 
   if (!temPermissao(usuarioLogado, PERMISSOES.GERENCIAR_USUARIOS)) {
     redirect('/')
