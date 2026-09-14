@@ -127,6 +127,16 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
+  const [modoData, setModoData] = useState<'MES' | 'PERIODO'>('MES')
+  const [filtroDataInicio, setFiltroDataInicio] = useState<string>(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  })
+  const [filtroDataFim, setFiltroDataFim] = useState<string>(() => {
+    const now = new Date()
+    const ultimo = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(ultimo.getDate()).padStart(2, '0')}`
+  })
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
 
   const montado = useRef(false)
@@ -135,7 +145,10 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
     try {
       let dataInicio: string | undefined
       let dataFim: string | undefined
-      if (filtroMes !== 'TODOS') {
+      if (modoData === 'PERIODO') {
+        dataInicio = filtroDataInicio
+        dataFim = filtroDataFim
+      } else if (filtroMes !== 'TODOS') {
         const [ano, mes] = filtroMes.split('-')
         dataInicio = `${ano}-${mes}-01`
         const ultimo = new Date(Number(ano), Number(mes), 0)
@@ -151,7 +164,7 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
     } catch {
       toast.error('Erro ao carregar lançamentos.')
     }
-  }, [equipeId, tipo, filtroMes, filtroStatus, filtroCategoria])
+  }, [equipeId, tipo, modoData, filtroMes, filtroDataInicio, filtroDataFim, filtroStatus, filtroCategoria])
 
   useEffect(() => {
     if (!montado.current) { montado.current = true; return }
@@ -264,9 +277,11 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
     return new Date(l.dt_vencimento) < new Date(hoje)
   }
 
-  const labelPeriodo = filtroMes === 'TODOS'
-    ? 'Todos os meses'
-    : new Date(Number(filtroMes.split('-')[0]), Number(filtroMes.split('-')[1]) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const labelPeriodo = modoData === 'PERIODO'
+    ? `${formatarData(filtroDataInicio)} até ${formatarData(filtroDataFim)}`
+    : filtroMes === 'TODOS'
+      ? 'Todos os meses'
+      : new Date(Number(filtroMes.split('-')[0]), Number(filtroMes.split('-')[1]) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
   function handleExportarPdf() {
     if (lancamentosFiltrados.length === 0) {
@@ -292,8 +307,8 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
       </div>
 
       {/* Barra de ações */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={busca}
@@ -305,18 +320,53 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
         <select
           value={filtroCategoria}
           onChange={e => setFiltroCategoria(e.target.value)}
-          className="bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-shrink-0"
         >
           <option value="TODAS">Todas as categorias</option>
           {planoContas.map(c => (
             <option key={c.id} value={c.id}>{c.nome}</option>
           ))}
         </select>
-        <SeletorMes value={filtroMes} onChange={setFiltroMes} />
+        <div className="relative inline-flex flex-shrink-0 bg-surface border border-border rounded-lg p-1">
+          <div
+            className={`absolute top-1 left-1 h-[calc(100%-0.5rem)] w-24 rounded-md bg-indigo-600 transition-transform duration-200 ease-out ${modoData === 'PERIODO' ? 'translate-x-24' : 'translate-x-0'}`}
+          />
+          <button
+            onClick={() => setModoData('MES')}
+            className={`relative z-10 w-24 py-1.5 rounded-md text-sm font-medium transition-colors ${modoData === 'MES' ? 'text-white' : 'text-gray-400 hover:text-foreground'}`}
+          >
+            Por mês
+          </button>
+          <button
+            onClick={() => setModoData('PERIODO')}
+            className={`relative z-10 w-24 py-1.5 rounded-md text-sm font-medium transition-colors ${modoData === 'PERIODO' ? 'text-white' : 'text-gray-400 hover:text-foreground'}`}
+          >
+            Por período
+          </button>
+        </div>
+        {modoData === 'MES' ? (
+          <SeletorMes value={filtroMes} onChange={setFiltroMes} />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+            <input
+              type="date"
+              value={filtroDataInicio}
+              onChange={e => setFiltroDataInicio(e.target.value)}
+              className="bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <span className="text-gray-400 text-sm">até</span>
+            <input
+              type="date"
+              value={filtroDataFim}
+              onChange={e => setFiltroDataFim(e.target.value)}
+              className="bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        )}
         <select
           value={filtroStatus}
           onChange={e => setFiltroStatus(e.target.value as StatusLancamento | 'TODOS')}
-          className="bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-shrink-0"
         >
           <option value="TODOS">Todos</option>
           <option value="PENDENTE">Pendente</option>
