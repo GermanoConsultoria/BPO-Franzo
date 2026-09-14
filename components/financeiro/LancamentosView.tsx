@@ -128,15 +128,8 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
   const [modoData, setModoData] = useState<'MES' | 'PERIODO'>('MES')
-  const [filtroDataInicio, setFiltroDataInicio] = useState<string>(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-  })
-  const [filtroDataFim, setFiltroDataFim] = useState<string>(() => {
-    const now = new Date()
-    const ultimo = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(ultimo.getDate()).padStart(2, '0')}`
-  })
+  const [filtroDataInicio, setFiltroDataInicio] = useState<string>('')
+  const [filtroDataFim, setFiltroDataFim] = useState<string>('')
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
 
   const montado = useRef(false)
@@ -146,8 +139,10 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
       let dataInicio: string | undefined
       let dataFim: string | undefined
       if (modoData === 'PERIODO') {
-        dataInicio = filtroDataInicio
-        dataFim = filtroDataFim
+        if (filtroDataInicio && filtroDataFim) {
+          dataInicio = filtroDataInicio
+          dataFim = filtroDataFim
+        }
       } else if (filtroMes !== 'TODOS') {
         const [ano, mes] = filtroMes.split('-')
         dataInicio = `${ano}-${mes}-01`
@@ -278,7 +273,7 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
   }
 
   const labelPeriodo = modoData === 'PERIODO'
-    ? `${formatarData(filtroDataInicio)} até ${formatarData(filtroDataFim)}`
+    ? (filtroDataInicio && filtroDataFim ? `${formatarData(filtroDataInicio)} até ${formatarData(filtroDataFim)}` : 'Todos os períodos')
     : filtroMes === 'TODOS'
       ? 'Todos os meses'
       : new Date(Number(filtroMes.split('-')[0]), Number(filtroMes.split('-')[1]) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
