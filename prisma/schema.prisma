@@ -115,19 +115,22 @@ model PlanoContas {
   @@map("plano_contas")
 }
 
-// Contas bancárias do cliente — usadas para identificar por qual banco um
-// lançamento (a pagar/receber) transita. Vive na mesma tela de "Plano de
-// Contas", mas é uma dimensão separada de receitas/despesas.
+// Contas bancárias do cliente — tela própria ("Bancos"), separada do Plano
+// de Contas. saldo_atual começa igual ao saldo_inicial no cadastro e é
+// movimentado em tempo real conforme pagamentos/recebimentos vinculados a
+// este banco são registrados (ver pagarLancamento / registrarPagamentoParcial).
 model Banco {
-  id           String                 @id @default(uuid())
-  equipe_id    String
-  nome         String
-  ativo        Boolean                @default(true)
-  dt_insert    DateTime               @default(now())
-  dt_update    DateTime               @default(now()) @updatedAt
+  id            String                 @id @default(uuid())
+  equipe_id     String
+  nome          String
+  saldo_inicial Decimal                @db.Decimal(15, 2) @default(0)
+  saldo_atual   Decimal                @db.Decimal(15, 2) @default(0)
+  ativo         Boolean                @default(true)
+  dt_insert     DateTime               @default(now())
+  dt_update     DateTime               @default(now()) @updatedAt
 
-  equipe       Equipe                 @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
-  lancamentos  LancamentoFinanceiro[]
+  equipe        Equipe                 @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
+  lancamentos   LancamentoFinanceiro[]
 
   @@index([equipe_id])
   @@map("banco")
@@ -145,6 +148,8 @@ model LancamentoFinanceiro {
   numero_documento  String?
   plano_contas_id   String
   banco_id          String?
+  saldo_anterior    Decimal?               @db.Decimal(15, 2)
+  saldo_atual       Decimal?               @db.Decimal(15, 2)
   status            StatusLancamento       @default(PENDENTE)
   recorrencia       Recorrencia            @default(NAO)
   numero_parcelas   Int?

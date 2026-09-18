@@ -11,26 +11,19 @@ export default async function PlanoContasPage({ params }: { params: Promise<{ eq
 
   const { equipeId } = await params
 
-  const [contas, bancos] = await Promise.all([
-    prisma.planoContas.findMany({
-      where: { equipe_id: equipeId },
-      include: { _count: { select: { lancamentos: true } } },
-      orderBy: [{ tipo: 'asc' }, { nome: 'asc' }],
-    }),
-    prisma.banco.findMany({
-      where: { equipe_id: equipeId },
-      include: { _count: { select: { lancamentos: true } } },
-      orderBy: { nome: 'asc' },
-    }),
-  ])
+  const contas = await prisma.planoContas.findMany({
+    where: { equipe_id: equipeId },
+    include: { _count: { select: { lancamentos: true } } },
+    orderBy: [{ tipo: 'asc' }, { nome: 'asc' }],
+  })
 
   return (
     <div className="p-4 lg:p-8 max-w-4xl mx-auto">
       <header className="mb-6 border-b border-border pb-4">
         <h1 className="text-2xl font-bold text-foreground">Plano de Contas</h1>
-        <p className="text-sm text-gray-500 mt-1">Categorias para classificar receitas, despesas e bancos deste cliente.</p>
+        <p className="text-sm text-gray-500 mt-1">Categorias para classificar receitas e despesas deste cliente.</p>
       </header>
-      <PlanoContasView equipeId={equipeId} contas={contas as never} bancos={bancos as never} />
+      <PlanoContasView equipeId={equipeId} contas={contas as never} />
     </div>
   )
 }

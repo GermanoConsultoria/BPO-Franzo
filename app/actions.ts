@@ -468,6 +468,46 @@ export async function toggleAtivoPlanoContas(id: string, equipeId: string): Prom
 
 // --- BANCOS ---
 
+type TxClient = Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>
+
+/** Aplica um movimento de dinheiro real (pagamento/recebimento ou o estorno
+ * dele) no saldo atual de um banco, dentro de uma transação. Retorna o saldo
+ * antes e depois do movimento, para registrar como "saldo anterior/atual" no
+ * lançamento que originou o movimento. */
+async function movimentarSaldoBanco(
+  tx: TxClient,
+  bancoId: string,
+  tipo: 'RECEITA' | 'DESPESA',
+  valor: number,
+  sentido: 1 | -1,
+): Promise<{ saldoAnterior: number; saldoAtual: number }> {
+  const banco = await tx.banco.findUniqueOrThrow({ where: { id: bancoId } })
+  const saldoAnterior = Number(banco.saldo_atual)
+  const delta = (tipo === 'RECEITA' ? 1 : -1) * sentido * valor
+  const saldoAtual = Math.round((saldoAnterior + delta) * 100) / 100
+
+  await tx.banco.update({ where: { id: bancoId }, data: { saldo_atual: saldoAtual } })
+  return { saldoAnterior, saldoAtual }
+}
+
+/** Estorna do banco vinculado todo o dinheiro que este lançamento já
+ * movimentou (valor cheio se PAGO, soma dos parciais caso contrário) — usado
+ * antes de excluir um lançamento/parcela que já teve movimentação real, para
+ * o saldo do banco não ficar desatualizado com um registro que deixou de
+ * existir. */
+async function reverterSaldoBancoDoLancamento(
+  tx: TxClient,
+  lancamento: { banco_id: string | null; tipo: 'RECEITA' | 'DESPESA'; valor: unknown; status: string; parciais: { valor: unknown }[] },
+) {
+  if (!lancamento.banco_id) return
+  const jaMovimentado = lancamento.status === 'PAGO'
+    ? Number(lancamento.valor)
+    : lancamento.parciais.reduce((s, p) => s + Number(p.valor), 0)
+  if (jaMovimentado > 0) {
+    await movimentarSaldoBanco(tx, lancamento.banco_id, lancamento.tipo, jaMovimentado, -1)
+  }
+}
+
 export async function criarBanco(formData: FormData): Promise<ActionResult<import('@prisma/client').Banco>> {
   try {
     const usuario = await getUsuarioLogado()
@@ -481,17 +521,23 @@ export async function criarBanco(formData: FormData): Promise<ActionResult<impor
     const nome = formData.get('nome') as string
     if (!nome?.trim()) return { success: false, error: 'Nome é obrigatório.' }
 
+    const saldoInicialStr = (formData.get('saldo_inicial') as string) || '0'
+    const saldoInicial = parseFloat(saldoInicialStr.replace(',', '.'))
+    if (isNaN(saldoInicial)) return { success: false, error: 'Saldo inicial inválido.' }
+
     const banco = await prisma.banco.create({
-      data: { equipe_id: equipeId, nome: nome.trim() }
+      data: { equipe_id: equipeId, nome: nome.trim(), saldo_inicial: saldoInicial, saldo_atual: saldoInicial }
     })
 
-    revalidatePath(`/equipe/${equipeId}/financeiro/plano-contas`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: banco }
   } catch {
     return { success: false, error: 'Erro ao criar banco.' }
   }
 }
 
+/** Só permite renomear — saldo_inicial não é editável após a criação, pois
+ * saldo_atual já pode ter se afastado dele por movimentações reais. */
 export async function editarBanco(formData: FormData): Promise<ActionResult<import('@prisma/client').Banco>> {
   try {
     const usuario = await getUsuarioLogado()
@@ -514,7 +560,7 @@ export async function editarBanco(formData: FormData): Promise<ActionResult<impo
       data: { nome: nome.trim() }
     })
 
-    revalidatePath(`/equipe/${equipeId}/financeiro/plano-contas`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: atualizado }
   } catch {
     return { success: false, error: 'Erro ao editar banco.' }
@@ -535,7 +581,7 @@ export async function excluirBanco(id: string, equipeId: string): Promise<Action
 
     await prisma.banco.delete({ where: { id } })
 
-    revalidatePath(`/equipe/${equipeId}/financeiro/plano-contas`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao excluir banco.' }
@@ -553,7 +599,7 @@ export async function toggleAtivoBanco(id: string, equipeId: string): Promise<Ac
 
     await prisma.banco.update({ where: { id }, data: { ativo: !banco.ativo } })
 
-    revalidatePath(`/equipe/${equipeId}/financeiro/plano-contas`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao alterar status do banco.' }
@@ -677,23 +723,37 @@ export async function editarLancamento(formData: FormData): Promise<ActionResult
       if (!banco) return { success: false, error: 'Banco não encontrado.' }
     }
 
+    // Valor e banco já movimentaram dinheiro real (pagamento ou parciais) —
+    // não dá pra editá-los aqui sem reabrir a movimentação já feita. Ignora
+    // só essas duas mudanças e mantém o resto da edição.
+    const temMovimento = lancamento.status === 'PAGO'
+      || (await prisma.pagamentoParcial.count({ where: { lancamento_id: id } })) > 0
+    let valorFinal = valor
+    let bancoIdFinal = banco_id
+    let warning: string | undefined
+    if (temMovimento && (valorFinal !== Number(lancamento.valor) || bancoIdFinal !== lancamento.banco_id)) {
+      valorFinal = Number(lancamento.valor)
+      bancoIdFinal = lancamento.banco_id
+      warning = 'Valor e banco não podem ser alterados após pagamentos registrados — as demais alterações foram salvas.'
+    }
+
     await prisma.lancamentoFinanceiro.update({
       where: { id },
-      data: { descricao, beneficiario, valor, dt_vencimento, numero_documento, plano_contas_id, banco_id }
+      data: { descricao, beneficiario, valor: valorFinal, dt_vencimento, numero_documento, plano_contas_id, banco_id: bancoIdFinal }
     })
 
     const aplicarATodos = formData.get('aplicar_a_todos') === 'true'
     if (aplicarATodos && lancamento.grupo_parcela_id) {
       await prisma.lancamentoFinanceiro.updateMany({
-        where: { grupo_parcela_id: lancamento.grupo_parcela_id, id: { not: id } },
-        data: { descricao, beneficiario, valor, numero_documento, plano_contas_id, banco_id },
+        where: { grupo_parcela_id: lancamento.grupo_parcela_id, id: { not: id }, status: { not: 'PAGO' } },
+        data: { descricao, beneficiario, valor: valorFinal, numero_documento, plano_contas_id, banco_id: bancoIdFinal },
       })
     }
 
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
-    return { success: true, data: undefined }
+    return { success: true, data: undefined, warning }
   } catch {
     return { success: false, error: 'Erro ao editar lançamento.' }
   }
@@ -705,17 +765,24 @@ export async function excluirGrupoParcelas(grupo_parcela_id: string, equipeId: s
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
-    const ids = await prisma.lancamentoFinanceiro.findMany({
+    const alvos = await prisma.lancamentoFinanceiro.findMany({
       where: { grupo_parcela_id, equipe_id: equipeId },
-      select: { id: true },
+      include: { parciais: { select: { valor: true } } },
     })
-    const idsArr = ids.map(l => l.id)
-    await prisma.anexoFinanceiro.deleteMany({ where: { lancamento_id: { in: idsArr } } })
-    await prisma.lancamentoFinanceiro.deleteMany({ where: { id: { in: idsArr } } })
+    const idsArr = alvos.map(l => l.id)
+
+    await prisma.$transaction(async (tx) => {
+      for (const l of alvos) {
+        await reverterSaldoBancoDoLancamento(tx, l)
+      }
+      await tx.anexoFinanceiro.deleteMany({ where: { lancamento_id: { in: idsArr } } })
+      await tx.lancamentoFinanceiro.deleteMany({ where: { id: { in: idsArr } } })
+    })
 
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao excluir grupo de parcelas.' }
@@ -743,16 +810,22 @@ export async function excluirParcelasAPartirDesta(id: string, equipeId: string):
         parcela_atual: { gte: lancamento.parcela_atual },
         status: { not: 'PAGO' },
       },
-      select: { id: true },
+      include: { parciais: { select: { valor: true } } },
     })
     const idsArr = alvos.map(l => l.id)
 
-    await prisma.anexoFinanceiro.deleteMany({ where: { lancamento_id: { in: idsArr } } })
-    await prisma.lancamentoFinanceiro.deleteMany({ where: { id: { in: idsArr } } })
+    await prisma.$transaction(async (tx) => {
+      for (const l of alvos) {
+        await reverterSaldoBancoDoLancamento(tx, l)
+      }
+      await tx.anexoFinanceiro.deleteMany({ where: { lancamento_id: { in: idsArr } } })
+      await tx.lancamentoFinanceiro.deleteMany({ where: { id: { in: idsArr } } })
+    })
 
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao excluir parcelas.' }
@@ -765,13 +838,34 @@ export async function pagarLancamento(id: string, dt_pagamento: string, equipeId
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
-    const lancamento = await prisma.lancamentoFinanceiro.findFirst({ where: { id, equipe_id: equipeId } })
+    const lancamento = await prisma.lancamentoFinanceiro.findFirst({
+      where: { id, equipe_id: equipeId },
+      include: { parciais: { select: { valor: true } } },
+    })
     if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
 
-    await prisma.lancamentoFinanceiro.update({
-      where: { id },
-      data: { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) }
-    })
+    const jaPago = lancamento.parciais.reduce((s, p) => s + Number(p.valor), 0)
+    const restante = Math.round((Number(lancamento.valor) - jaPago) * 100) / 100
+
+    if (lancamento.banco_id && restante > 0) {
+      await prisma.$transaction(async (tx) => {
+        const { saldoAnterior, saldoAtual } = await movimentarSaldoBanco(tx, lancamento.banco_id!, lancamento.tipo, restante, 1)
+        await tx.lancamentoFinanceiro.update({
+          where: { id },
+          data: {
+            status: 'PAGO',
+            dt_pagamento: new Date(dt_pagamento),
+            saldo_anterior: lancamento.saldo_anterior ?? saldoAnterior,
+            saldo_atual: saldoAtual,
+          }
+        })
+      })
+    } else {
+      await prisma.lancamentoFinanceiro.update({
+        where: { id },
+        data: { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) }
+      })
+    }
 
     if (lancamento.recorrencia !== 'NAO') {
       const baseDate = new Date(lancamento.dt_vencimento)
@@ -798,6 +892,7 @@ export async function pagarLancamento(id: string, dt_pagamento: string, equipeId
           dt_vencimento: proxData,
           numero_documento: lancamento.numero_documento,
           plano_contas_id: lancamento.plano_contas_id,
+          banco_id: lancamento.banco_id,
           recorrencia: lancamento.recorrencia,
           status: 'PENDENTE',
           lancamento_pai_id: id,
@@ -808,6 +903,7 @@ export async function pagarLancamento(id: string, dt_pagamento: string, equipeId
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao registrar pagamento.' }
@@ -850,22 +946,48 @@ export async function registrarPagamentoParcial(
       return { success: false, error: `O parcial (R$ ${valorParcial.toFixed(2)}) ultrapassa o saldo restante (R$ ${restante.toFixed(2)}).` }
     }
 
-    await prisma.pagamentoParcial.create({
-      data: {
-        lancamento_id: lancamentoId,
-        valor: valorParcial,
-        dt_pagamento: new Date(dt_pagamento),
-        observacao: observacao?.trim() || null,
-      },
-    })
-
     const novoTotal = Math.round((jaPago + valorParcial) * 100) / 100
-    if (novoTotal >= total) {
-      await prisma.lancamentoFinanceiro.update({
-        where: { id: lancamentoId },
-        data: { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) },
+    const quitaAgora = novoTotal >= total
+
+    if (lancamento.banco_id) {
+      await prisma.$transaction(async (tx) => {
+        const { saldoAnterior, saldoAtual } = await movimentarSaldoBanco(tx, lancamento.banco_id!, lancamento.tipo, valorParcial, 1)
+        await tx.pagamentoParcial.create({
+          data: {
+            lancamento_id: lancamentoId,
+            valor: valorParcial,
+            dt_pagamento: new Date(dt_pagamento),
+            observacao: observacao?.trim() || null,
+          },
+        })
+        await tx.lancamentoFinanceiro.update({
+          where: { id: lancamentoId },
+          data: {
+            saldo_anterior: lancamento.saldo_anterior ?? saldoAnterior,
+            saldo_atual: saldoAtual,
+            ...(quitaAgora ? { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) } : {}),
+          },
+        })
+      })
+    } else {
+      await prisma.pagamentoParcial.create({
+        data: {
+          lancamento_id: lancamentoId,
+          valor: valorParcial,
+          dt_pagamento: new Date(dt_pagamento),
+          observacao: observacao?.trim() || null,
+        },
       })
 
+      if (quitaAgora) {
+        await prisma.lancamentoFinanceiro.update({
+          where: { id: lancamentoId },
+          data: { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) },
+        })
+      }
+    }
+
+    if (quitaAgora) {
       if (lancamento.recorrencia !== 'NAO') {
         const baseDate = new Date(lancamento.dt_vencimento)
         let proxData: Date
@@ -883,6 +1005,7 @@ export async function registrarPagamentoParcial(
             dt_vencimento: proxData,
             numero_documento: lancamento.numero_documento,
             plano_contas_id: lancamento.plano_contas_id,
+            banco_id: lancamento.banco_id,
             recorrencia: lancamento.recorrencia,
             status: 'PENDENTE',
             lancamento_pai_id: lancamentoId,
@@ -894,6 +1017,7 @@ export async function registrarPagamentoParcial(
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao registrar parcial.' }
@@ -920,11 +1044,27 @@ export async function excluirPagamentoParcial(parcialId: string, equipeId: strin
       return { success: false, error: 'Lançamento já quitado ou cancelado — não é possível remover parciais.' }
     }
 
-    await prisma.pagamentoParcial.delete({ where: { id: parcialId } })
+    if (parcial.lancamento.banco_id) {
+      await prisma.$transaction(async (tx) => {
+        const { saldoAtual } = await movimentarSaldoBanco(tx, parcial.lancamento.banco_id!, parcial.lancamento.tipo, Number(parcial.valor), -1)
+        await tx.pagamentoParcial.delete({ where: { id: parcialId } })
+
+        const parciaisRestantes = await tx.pagamentoParcial.count({ where: { lancamento_id: parcial.lancamento_id } })
+        await tx.lancamentoFinanceiro.update({
+          where: { id: parcial.lancamento_id },
+          data: parciaisRestantes === 0
+            ? { saldo_anterior: null, saldo_atual: null }
+            : { saldo_atual: saldoAtual },
+        })
+      })
+    } else {
+      await prisma.pagamentoParcial.delete({ where: { id: parcialId } })
+    }
 
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao remover parcial.' }
@@ -937,7 +1077,10 @@ export async function excluirEAvancarRecorrencia(id: string, equipeId: string): 
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
-    const lancamento = await prisma.lancamentoFinanceiro.findFirst({ where: { id, equipe_id: equipeId } })
+    const lancamento = await prisma.lancamentoFinanceiro.findFirst({
+      where: { id, equipe_id: equipeId },
+      include: { parciais: { select: { valor: true } } },
+    })
     if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
 
     const baseDate = new Date(lancamento.dt_vencimento)
@@ -951,27 +1094,32 @@ export async function excluirEAvancarRecorrencia(id: string, equipeId: string): 
       proxData = new Date(baseDate); proxData.setMonth(proxData.getMonth() + 1)
     }
 
-    await prisma.anexoFinanceiro.deleteMany({ where: { lancamento_id: id } })
-    await prisma.lancamentoFinanceiro.delete({ where: { id } })
+    await prisma.$transaction(async (tx) => {
+      await reverterSaldoBancoDoLancamento(tx, lancamento)
+      await tx.anexoFinanceiro.deleteMany({ where: { lancamento_id: id } })
+      await tx.lancamentoFinanceiro.delete({ where: { id } })
 
-    await prisma.lancamentoFinanceiro.create({
-      data: {
-        equipe_id: lancamento.equipe_id,
-        tipo: lancamento.tipo,
-        descricao: lancamento.descricao,
-        beneficiario: lancamento.beneficiario,
-        valor: lancamento.valor,
-        dt_vencimento: proxData,
-        numero_documento: lancamento.numero_documento,
-        plano_contas_id: lancamento.plano_contas_id,
-        recorrencia: lancamento.recorrencia,
-        status: 'PENDENTE',
-        lancamento_pai_id: id,
-      }
+      await tx.lancamentoFinanceiro.create({
+        data: {
+          equipe_id: lancamento.equipe_id,
+          tipo: lancamento.tipo,
+          descricao: lancamento.descricao,
+          beneficiario: lancamento.beneficiario,
+          valor: lancamento.valor,
+          dt_vencimento: proxData,
+          numero_documento: lancamento.numero_documento,
+          plano_contas_id: lancamento.plano_contas_id,
+          banco_id: lancamento.banco_id,
+          recorrencia: lancamento.recorrencia,
+          status: 'PENDENTE',
+          lancamento_pai_id: id,
+        }
+      })
     })
 
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao processar lançamento.' }
@@ -986,6 +1134,7 @@ export async function cancelarLancamento(id: string, equipeId: string): Promise<
 
     const lancamento = await prisma.lancamentoFinanceiro.findFirst({ where: { id, equipe_id: equipeId } })
     if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
+    if (lancamento.status === 'PAGO') return { success: false, error: 'Lançamento já pago não pode ser cancelado.' }
 
     await prisma.lancamentoFinanceiro.update({ where: { id }, data: { status: 'CANCELADO' } })
 
@@ -1004,15 +1153,22 @@ export async function excluirLancamento(id: string, equipeId: string): Promise<A
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
     if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
 
-    const lancamento = await prisma.lancamentoFinanceiro.findFirst({ where: { id, equipe_id: equipeId } })
+    const lancamento = await prisma.lancamentoFinanceiro.findFirst({
+      where: { id, equipe_id: equipeId },
+      include: { parciais: { select: { valor: true } } },
+    })
     if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
 
-    await prisma.anexoFinanceiro.deleteMany({ where: { lancamento_id: id } })
-    await prisma.lancamentoFinanceiro.delete({ where: { id } })
+    await prisma.$transaction(async (tx) => {
+      await reverterSaldoBancoDoLancamento(tx, lancamento)
+      await tx.anexoFinanceiro.deleteMany({ where: { lancamento_id: id } })
+      await tx.lancamentoFinanceiro.delete({ where: { id } })
+    })
 
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao excluir lançamento.' }
@@ -1116,6 +1272,9 @@ export async function getLancamentosFinanceiros(
   return lancamentos.map(l => ({
     ...l,
     valor: Number(l.valor),
+    saldo_anterior: l.saldo_anterior !== null ? Number(l.saldo_anterior) : null,
+    saldo_atual: l.saldo_atual !== null ? Number(l.saldo_atual) : null,
+    banco: l.banco ? { ...l.banco, saldo_inicial: Number(l.banco.saldo_inicial), saldo_atual: Number(l.banco.saldo_atual) } : null,
     parciais: l.parciais.map(p => ({ ...p, valor: Number(p.valor) })),
   }))
 }

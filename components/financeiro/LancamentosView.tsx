@@ -411,6 +411,8 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
                   {tipo === 'DESPESA' && <th className="text-left px-4 py-3">Beneficiário</th>}
                   <th className="text-left px-4 py-3">Categoria</th>
                   <th className="text-left px-4 py-3">Banco</th>
+                  <th className="text-right px-4 py-3">Saldo Anterior</th>
+                  <th className="text-right px-4 py-3">Saldo Atual</th>
                   <th className="text-right px-4 py-3">Valor</th>
                   <th className="text-right px-4 py-3">Parciais</th>
                   <th className="text-right px-4 py-3">Restante</th>
@@ -440,6 +442,8 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
                     )}
                     <td className="px-4 py-3 text-gray-400">{l.plano_contas.nome}</td>
                     <td className="px-4 py-3 text-gray-400">{l.banco?.nome ?? '—'}</td>
+                    <td className="px-4 py-3 text-right text-gray-400">{l.saldo_anterior !== null ? formatarMoeda(l.saldo_anterior) : '—'}</td>
+                    <td className="px-4 py-3 text-right text-gray-400">{l.saldo_atual !== null ? formatarMoeda(l.saldo_atual) : '—'}</td>
                     <td className={`px-4 py-3 text-right font-semibold ${tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
                       {formatarMoeda(Number(l.valor))}
                     </td>

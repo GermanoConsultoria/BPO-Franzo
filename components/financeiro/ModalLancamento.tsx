@@ -51,6 +51,8 @@ export default function ModalLancamento({ equipeId, tipo, planoContas, bancos, l
 
   const totalParciais = parciais.reduce((s, p) => s + Number(p.valor), 0)
   const restanteParciais = Math.round((Number(lancamento?.valor ?? 0) - totalParciais) * 100) / 100
+  // Valor/banco já movimentaram dinheiro real — trava a edição desses dois campos.
+  const temMovimento = !!lancamento && (lancamento.status === 'PAGO' || parciais.length > 0)
 
   function handleValorChange(e: React.ChangeEvent<HTMLInputElement>) {
     const apenasDigitos = e.target.value.replace(/\D/g, '')
@@ -119,6 +121,7 @@ export default function ModalLancamento({ equipeId, tipo, planoContas, bancos, l
     }
 
     toast.success(lancamento ? 'Lançamento atualizado.' : 'Lançamento criado.')
+    if (resultado.warning) toast.warning(resultado.warning)
     onClose()
     onSuccess()
   }
@@ -175,7 +178,9 @@ export default function ModalLancamento({ equipeId, tipo, planoContas, bancos, l
                 onChange={handleValorChange}
                 placeholder="R$ 0,00"
                 required={valorCentavos === 0}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                disabled={temMovimento}
+                title={temMovimento ? 'Não é possível alterar o valor após pagamentos registrados.' : undefined}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
             <div>
@@ -326,7 +331,9 @@ export default function ModalLancamento({ equipeId, tipo, planoContas, bancos, l
             <select
               name="banco_id"
               defaultValue={lancamento?.banco_id ?? ''}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              disabled={temMovimento}
+              title={temMovimento ? 'Não é possível trocar o banco após pagamentos registrados.' : undefined}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <option value="">Nenhum</option>
               {bancos.map(b => (

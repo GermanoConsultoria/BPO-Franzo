@@ -30,8 +30,13 @@ export default async function ContasAReceberPage({ params }: { params: Promise<{
   const lancamentosSerializados = lancamentos.map(l => ({
     ...l,
     valor: Number(l.valor),
+    saldo_anterior: l.saldo_anterior !== null ? Number(l.saldo_anterior) : null,
+    saldo_atual: l.saldo_atual !== null ? Number(l.saldo_atual) : null,
+    banco: l.banco ? { ...l.banco, saldo_inicial: Number(l.banco.saldo_inicial), saldo_atual: Number(l.banco.saldo_atual) } : null,
     parciais: l.parciais.map(p => ({ ...p, valor: Number(p.valor) })),
   }))
+
+  const bancosSerializados = bancos.map(b => ({ ...b, saldo_inicial: Number(b.saldo_inicial), saldo_atual: Number(b.saldo_atual) }))
 
   return (
     <div className="p-4 lg:p-8 max-w-7xl mx-auto">
@@ -43,7 +48,7 @@ export default async function ContasAReceberPage({ params }: { params: Promise<{
         equipeId={equipeId}
         lancamentos={lancamentosSerializados as never}
         planoContas={planoContas}
-        bancos={bancos}
+        bancos={bancosSerializados}
         tipo="RECEITA"
       />
     </div>

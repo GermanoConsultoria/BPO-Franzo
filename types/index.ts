@@ -113,12 +113,15 @@ export type PlanoContas = {
   dt_update: Date | string
 }
 
-/** Conta bancária do cliente. Dimensão separada de receitas/despesas — usada
- * para identificar por qual banco um lançamento transita. */
+/** Conta bancária do cliente. Tela própria — saldo_atual começa igual ao
+ * saldo_inicial e é movimentado conforme pagamentos/recebimentos vinculados
+ * a este banco são registrados. */
 export type Banco = {
   id: string
   equipe_id: string
   nome: string
+  saldo_inicial: number
+  saldo_atual: number
   ativo: boolean
   dt_insert: Date | string
   dt_update: Date | string
@@ -136,6 +139,8 @@ export type LancamentoFinanceiro = {
   numero_documento: string | null
   plano_contas_id: string
   banco_id: string | null
+  saldo_anterior: number | null
+  saldo_atual: number | null
   status: StatusLancamento
   recorrencia: Recorrencia
   numero_parcelas: number | null
