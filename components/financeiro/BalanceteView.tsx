@@ -27,6 +27,7 @@ const COR_EXPORT = {
 
 interface Props {
   equipeId: string
+  nomeCliente: string
   balancete: Balancete | null
   dataInicio: string
   dataFim: string
@@ -128,7 +129,7 @@ function SeletorMesBalancete({ value, onSelecionar }: { value: string; onSelecio
   )
 }
 
-export default function BalanceteView({ equipeId, balancete, dataInicio, dataFim }: Props) {
+export default function BalanceteView({ equipeId, nomeCliente, balancete, dataInicio, dataFim }: Props) {
   const router = useRouter()
   const [modo, setModo] = useState<'mes' | 'ano' | 'periodo'>('mes')
   const [anoSel, setAnoSel] = useState(new Date().getFullYear())
@@ -183,7 +184,7 @@ export default function BalanceteView({ equipeId, balancete, dataInicio, dataFim
       const pageHeight = doc.internal.pageSize.getHeight()
       const margemX = 10
       const margemTopoOutras = 10
-      const topoPrimeiraPagina = 30
+      const topoPrimeiraPagina = 34
       const imgWidth = pageWidth - margemX * 2
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       const imgData = canvas.toDataURL('image/png')
@@ -192,11 +193,15 @@ export default function BalanceteView({ equipeId, balancete, dataInicio, dataFim
       doc.setFontSize(16)
       doc.setTextColor(20)
       doc.text('Balancete', 14, 16)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(12)
+      doc.setTextColor(70)
+      doc.text(nomeCliente, 14, 23)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
       doc.setTextColor(110)
       const labelPeriodoEfeito = `${new Date(dataInicio + 'T12:00:00').toLocaleDateString('pt-BR')} até ${new Date(dataFim + 'T12:00:00').toLocaleDateString('pt-BR')}`
-      doc.text(`Período: ${labelPeriodoEfeito}`, 14, 22)
+      doc.text(`Período: ${labelPeriodoEfeito}`, 14, 29)
 
       doc.addImage(imgData, 'PNG', margemX, topoPrimeiraPagina, imgWidth, imgHeight)
       let restante = imgHeight - (pageHeight - topoPrimeiraPagina)
@@ -214,7 +219,7 @@ export default function BalanceteView({ equipeId, balancete, dataInicio, dataFim
       setGerandoPdfGeral(false)
     })()
     return () => { cancelado = true }
-  }, [preparandoExportGeral, dataInicio, dataFim])
+  }, [preparandoExportGeral, dataInicio, dataFim, nomeCliente])
 
   if (!balancete) {
     return <p className="text-center text-gray-500 py-12">Erro ao carregar balancete.</p>
@@ -392,6 +397,7 @@ export default function BalanceteView({ equipeId, balancete, dataInicio, dataFim
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <TabelaConta
           titulo="Receitas por Conta"
+          nomeCliente={nomeCliente}
           itens={b.receitas_por_conta}
           total={b.receitas}
           cor="text-emerald-400"
@@ -401,6 +407,7 @@ export default function BalanceteView({ equipeId, balancete, dataInicio, dataFim
         />
         <TabelaConta
           titulo="Despesas por Conta"
+          nomeCliente={nomeCliente}
           itens={b.despesas_por_conta}
           total={b.despesas}
           cor="text-red-400"
@@ -525,6 +532,7 @@ function ContratosEncerrando({ contratos }: { contratos: ContratoEncerrando[] })
 
 function TabelaConta({
   titulo,
+  nomeCliente,
   itens,
   total,
   cor,
@@ -533,6 +541,7 @@ function TabelaConta({
   labelPeriodo,
 }: {
   titulo: string
+  nomeCliente: string
   itens: { plano_contas_id: string; nome: string; total: number }[]
   total: number
   cor: string
@@ -545,12 +554,12 @@ function TabelaConta({
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
 
   function exportarResumida() {
-    setPdfBlob(gerarPdfContaResumo({ titulo, itens, total, labelPeriodo, corDestaque: corPdf }))
+    setPdfBlob(gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf }))
     setMostrarEscolhaPdf(false)
   }
 
   function exportarDetalhada() {
-    setPdfBlob(gerarPdfContaDetalhado({ titulo, itens, total, labelPeriodo, corDestaque: corPdf, lancamentosPorConta }))
+    setPdfBlob(gerarPdfContaDetalhado({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf, lancamentosPorConta }))
     setMostrarEscolhaPdf(false)
   }
 

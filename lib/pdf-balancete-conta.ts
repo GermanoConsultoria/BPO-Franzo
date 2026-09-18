@@ -28,20 +28,25 @@ function formatarData(data: Date | string) {
   return new Date(data).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
 }
 
-function desenharCabecalho(doc: jsPDF, titulo: string, labelPeriodo: string) {
+function desenharCabecalho(doc: jsPDF, titulo: string, nomeCliente: string, labelPeriodo: string) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
   doc.setTextColor(20)
   doc.text(titulo, 14, 16)
 
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.setTextColor(70)
+  doc.text(nomeCliente, 14, 23)
+
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
   doc.setTextColor(110)
-  doc.text(`Período: ${labelPeriodo}`, 14, 22)
+  doc.text(`Período: ${labelPeriodo}`, 14, 29)
   doc.text(
     `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
     14,
-    27
+    34
   )
 }
 
@@ -60,15 +65,16 @@ function desenharRodape(doc: jsPDF) {
 
 interface ParamsBase {
   titulo: string
+  nomeCliente: string
   itens: ItemConta[]
   total: number
   labelPeriodo: string
   corDestaque: [number, number, number]
 }
 
-export function gerarPdfContaResumo({ titulo, itens, total, labelPeriodo, corDestaque }: ParamsBase): Blob {
+export function gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque }: ParamsBase): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  desenharCabecalho(doc, titulo, labelPeriodo)
+  desenharCabecalho(doc, titulo, nomeCliente, labelPeriodo)
 
   const ordenados = [...itens].sort((a, b) => b.total - a.total)
   const linhas = ordenados.map(item => [
@@ -79,7 +85,7 @@ export function gerarPdfContaResumo({ titulo, itens, total, labelPeriodo, corDes
   linhas.push(['Total', formatarMoeda(total), '100%'])
 
   autoTable(doc, {
-    startY: 32,
+    startY: 39,
     head: [['Conta', 'Total', '%']],
     body: linhas,
     styles: { fontSize: 9, cellPadding: 2.5, textColor: 30 },
@@ -101,12 +107,12 @@ interface ParamsDetalhado extends ParamsBase {
   lancamentosPorConta: Record<string, LancamentoConta[]>
 }
 
-export function gerarPdfContaDetalhado({ titulo, itens, labelPeriodo, corDestaque, lancamentosPorConta }: ParamsDetalhado): Blob {
+export function gerarPdfContaDetalhado({ titulo, nomeCliente, itens, labelPeriodo, corDestaque, lancamentosPorConta }: ParamsDetalhado): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  desenharCabecalho(doc, titulo, labelPeriodo)
+  desenharCabecalho(doc, titulo, nomeCliente, labelPeriodo)
 
   const ordenados = [...itens].sort((a, b) => b.total - a.total)
-  let y = 32
+  let y = 39
   const alturaPagina = doc.internal.pageSize.getHeight()
 
   for (const item of ordenados) {
