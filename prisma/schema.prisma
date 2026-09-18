@@ -34,6 +34,7 @@ model Equipe {
   workspace    Workspace       @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
   membros      EquipeUsuario[]
   planoContas  PlanoContas[]
+  bancos       Banco[]
   lancamentos  LancamentoFinanceiro[]
 
   @@index([workspace_id])
@@ -114,6 +115,24 @@ model PlanoContas {
   @@map("plano_contas")
 }
 
+// Contas bancárias do cliente — usadas para identificar por qual banco um
+// lançamento (a pagar/receber) transita. Vive na mesma tela de "Plano de
+// Contas", mas é uma dimensão separada de receitas/despesas.
+model Banco {
+  id           String                 @id @default(uuid())
+  equipe_id    String
+  nome         String
+  ativo        Boolean                @default(true)
+  dt_insert    DateTime               @default(now())
+  dt_update    DateTime               @default(now()) @updatedAt
+
+  equipe       Equipe                 @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
+  lancamentos  LancamentoFinanceiro[]
+
+  @@index([equipe_id])
+  @@map("banco")
+}
+
 model LancamentoFinanceiro {
   id                String                 @id @default(uuid())
   equipe_id         String
@@ -125,6 +144,7 @@ model LancamentoFinanceiro {
   dt_pagamento      DateTime?
   numero_documento  String?
   plano_contas_id   String
+  banco_id          String?
   status            StatusLancamento       @default(PENDENTE)
   recorrencia       Recorrencia            @default(NAO)
   numero_parcelas   Int?
@@ -136,6 +156,7 @@ model LancamentoFinanceiro {
 
   equipe            Equipe                 @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
   plano_contas      PlanoContas            @relation(fields: [plano_contas_id], references: [id])
+  banco             Banco?                 @relation(fields: [banco_id], references: [id], onDelete: SetNull)
   lancamento_pai    LancamentoFinanceiro?  @relation("Parcelas", fields: [lancamento_pai_id], references: [id], onDelete: SetNull)
   parcelas          LancamentoFinanceiro[] @relation("Parcelas")
   anexos            AnexoFinanceiro[]
@@ -144,6 +165,7 @@ model LancamentoFinanceiro {
   @@index([equipe_id, status])
   @@index([equipe_id, dt_vencimento])
   @@index([plano_contas_id])
+  @@index([banco_id])
   @@index([grupo_parcela_id])
   @@index([lancamento_pai_id])
   @@map("lancamento_financeiro")

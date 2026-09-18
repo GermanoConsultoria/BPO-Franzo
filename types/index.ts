@@ -113,6 +113,17 @@ export type PlanoContas = {
   dt_update: Date | string
 }
 
+/** Conta bancária do cliente. Dimensão separada de receitas/despesas — usada
+ * para identificar por qual banco um lançamento transita. */
+export type Banco = {
+  id: string
+  equipe_id: string
+  nome: string
+  ativo: boolean
+  dt_insert: Date | string
+  dt_update: Date | string
+}
+
 export type LancamentoFinanceiro = {
   id: string
   equipe_id: string
@@ -124,6 +135,7 @@ export type LancamentoFinanceiro = {
   dt_pagamento: Date | string | null
   numero_documento: string | null
   plano_contas_id: string
+  banco_id: string | null
   status: StatusLancamento
   recorrencia: Recorrencia
   numero_parcelas: number | null
@@ -155,6 +167,7 @@ export type PagamentoParcial = {
 
 export type LancamentoComRelacoes = LancamentoFinanceiro & {
   plano_contas: PlanoContas
+  banco: Banco | null
   anexos: AnexoFinanceiro[]
   parciais: PagamentoParcial[]
   parcelas?: LancamentoFinanceiro[]

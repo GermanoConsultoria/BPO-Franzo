@@ -466,6 +466,100 @@ export async function toggleAtivoPlanoContas(id: string, equipeId: string): Prom
   }
 }
 
+// --- BANCOS ---
+
+export async function criarBanco(formData: FormData): Promise<ActionResult<import('@prisma/client').Banco>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+
+    const equipeId = formData.get('equipeId') as string
+    if (!equipeId || !(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) {
+      return { success: false, error: 'Sem acesso a este cliente.' }
+    }
+
+    const nome = formData.get('nome') as string
+    if (!nome?.trim()) return { success: false, error: 'Nome é obrigatório.' }
+
+    const banco = await prisma.banco.create({
+      data: { equipe_id: equipeId, nome: nome.trim() }
+    })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/plano-contas`)
+    return { success: true, data: banco }
+  } catch {
+    return { success: false, error: 'Erro ao criar banco.' }
+  }
+}
+
+export async function editarBanco(formData: FormData): Promise<ActionResult<import('@prisma/client').Banco>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+
+    const equipeId = formData.get('equipeId') as string
+    if (!equipeId || !(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) {
+      return { success: false, error: 'Sem acesso a este cliente.' }
+    }
+
+    const id = formData.get('id') as string
+    const nome = formData.get('nome') as string
+    if (!nome?.trim()) return { success: false, error: 'Nome é obrigatório.' }
+
+    const banco = await prisma.banco.findFirst({ where: { id, equipe_id: equipeId } })
+    if (!banco) return { success: false, error: 'Banco não encontrado.' }
+
+    const atualizado = await prisma.banco.update({
+      where: { id },
+      data: { nome: nome.trim() }
+    })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/plano-contas`)
+    return { success: true, data: atualizado }
+  } catch {
+    return { success: false, error: 'Erro ao editar banco.' }
+  }
+}
+
+export async function excluirBanco(id: string, equipeId: string): Promise<ActionResult<undefined>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+    if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
+
+    const banco = await prisma.banco.findFirst({ where: { id, equipe_id: equipeId } })
+    if (!banco) return { success: false, error: 'Banco não encontrado.' }
+
+    const emUso = await prisma.lancamentoFinanceiro.count({ where: { banco_id: id } })
+    if (emUso > 0) return { success: false, error: 'Este banco possui lançamentos vinculados e não pode ser excluído.' }
+
+    await prisma.banco.delete({ where: { id } })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/plano-contas`)
+    return { success: true, data: undefined }
+  } catch {
+    return { success: false, error: 'Erro ao excluir banco.' }
+  }
+}
+
+export async function toggleAtivoBanco(id: string, equipeId: string): Promise<ActionResult<undefined>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+    if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
+
+    const banco = await prisma.banco.findFirst({ where: { id, equipe_id: equipeId } })
+    if (!banco) return { success: false, error: 'Banco não encontrado.' }
+
+    await prisma.banco.update({ where: { id }, data: { ativo: !banco.ativo } })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/plano-contas`)
+    return { success: true, data: undefined }
+  } catch {
+    return { success: false, error: 'Erro ao alterar status do banco.' }
+  }
+}
+
 // --- LANÇAMENTOS FINANCEIROS ---
 
 export async function criarLancamento(formData: FormData): Promise<ActionResult<undefined>> {
@@ -486,6 +580,7 @@ export async function criarLancamento(formData: FormData): Promise<ActionResult<
     const dt_vencimento = new Date(formData.get('dt_vencimento') as string)
     const numero_documento = (formData.get('numero_documento') as string)?.trim() || null
     const plano_contas_id = formData.get('plano_contas_id') as string
+    const banco_id = (formData.get('banco_id') as string)?.trim() || null
     const recorrencia = (formData.get('recorrencia') as string || 'NAO') as import('@prisma/client').Recorrencia
     const numero_parcelas = parseInt(formData.get('numero_parcelas') as string) || 1
 
@@ -495,6 +590,11 @@ export async function criarLancamento(formData: FormData): Promise<ActionResult<
 
     const conta = await prisma.planoContas.findFirst({ where: { id: plano_contas_id, equipe_id: equipeId } })
     if (!conta) return { success: false, error: 'Categoria não encontrada.' }
+
+    if (banco_id) {
+      const banco = await prisma.banco.findFirst({ where: { id: banco_id, equipe_id: equipeId } })
+      if (!banco) return { success: false, error: 'Banco não encontrado.' }
+    }
 
     if (numero_parcelas > 1) {
       const grupoParcela = crypto.randomUUID()
@@ -512,6 +612,7 @@ export async function criarLancamento(formData: FormData): Promise<ActionResult<
             dt_vencimento: dtParcela,
             numero_documento,
             plano_contas_id,
+            banco_id,
             recorrencia: 'NAO',
             numero_parcelas,
             parcela_atual: i,
@@ -530,6 +631,7 @@ export async function criarLancamento(formData: FormData): Promise<ActionResult<
           dt_vencimento,
           numero_documento,
           plano_contas_id,
+          banco_id,
           recorrencia,
         }
       })
@@ -562,6 +664,7 @@ export async function editarLancamento(formData: FormData): Promise<ActionResult
     const dt_vencimento = new Date(formData.get('dt_vencimento') as string)
     const numero_documento = (formData.get('numero_documento') as string)?.trim() || null
     const plano_contas_id = formData.get('plano_contas_id') as string
+    const banco_id = (formData.get('banco_id') as string)?.trim() || null
 
     if (!descricao) return { success: false, error: 'Descrição é obrigatória.' }
     if (isNaN(valor) || valor <= 0) return { success: false, error: 'Valor inválido.' }
@@ -569,16 +672,21 @@ export async function editarLancamento(formData: FormData): Promise<ActionResult
     const lancamento = await prisma.lancamentoFinanceiro.findFirst({ where: { id, equipe_id: equipeId } })
     if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
 
+    if (banco_id) {
+      const banco = await prisma.banco.findFirst({ where: { id: banco_id, equipe_id: equipeId } })
+      if (!banco) return { success: false, error: 'Banco não encontrado.' }
+    }
+
     await prisma.lancamentoFinanceiro.update({
       where: { id },
-      data: { descricao, beneficiario, valor, dt_vencimento, numero_documento, plano_contas_id }
+      data: { descricao, beneficiario, valor, dt_vencimento, numero_documento, plano_contas_id, banco_id }
     })
 
     const aplicarATodos = formData.get('aplicar_a_todos') === 'true'
     if (aplicarATodos && lancamento.grupo_parcela_id) {
       await prisma.lancamentoFinanceiro.updateMany({
         where: { grupo_parcela_id: lancamento.grupo_parcela_id, id: { not: id } },
-        data: { descricao, beneficiario, valor, numero_documento, plano_contas_id },
+        data: { descricao, beneficiario, valor, numero_documento, plano_contas_id, banco_id },
       })
     }
 
@@ -970,7 +1078,7 @@ export async function excluirAnexoFinanceiro(anexoId: string, equipeId: string):
 export async function getLancamentosFinanceiros(
   equipeId: string,
   tipo: 'DESPESA' | 'RECEITA',
-  filtros?: { dataInicio?: string; dataFim?: string; status?: string; plano_contas_id?: string }
+  filtros?: { dataInicio?: string; dataFim?: string; status?: string; plano_contas_id?: string; banco_id?: string }
 ) {
   const usuario = await getUsuarioLogado()
   if (!usuario) return []
@@ -996,9 +1104,13 @@ export async function getLancamentosFinanceiros(
     where.plano_contas_id = filtros.plano_contas_id
   }
 
+  if (filtros?.banco_id && filtros.banco_id !== 'TODOS') {
+    where.banco_id = filtros.banco_id === 'SEM_BANCO' ? null : filtros.banco_id
+  }
+
   const lancamentos = await prisma.lancamentoFinanceiro.findMany({
     where,
-    include: { plano_contas: true, anexos: true, parciais: { orderBy: { dt_pagamento: 'asc' } } },
+    include: { plano_contas: true, banco: true, anexos: true, parciais: { orderBy: { dt_pagamento: 'asc' } } },
     orderBy: { dt_vencimento: 'asc' },
   })
   return lancamentos.map(l => ({

@@ -6,12 +6,13 @@ import { toast } from 'sonner'
 import { criarLancamento, editarLancamento, salvarAnexoFinanceiro, excluirAnexoFinanceiro, registrarPagamentoParcial, excluirPagamentoParcial } from '@/app/actions'
 import { UploadButton } from '@/lib/uploadthing'
 import ListaAnexos from '@/components/ListaAnexos'
-import type { LancamentoComRelacoes, PlanoContas, TipoLancamento, AnexoFinanceiro, PagamentoParcial } from '@/types'
+import type { LancamentoComRelacoes, PlanoContas, Banco, TipoLancamento, AnexoFinanceiro, PagamentoParcial } from '@/types'
 
 interface Props {
   equipeId: string
   tipo: TipoLancamento
   planoContas: PlanoContas[]
+  bancos: Banco[]
   lancamento?: LancamentoComRelacoes
   onClose: () => void
   onSuccess: () => void
@@ -25,7 +26,7 @@ function parseCentavos(valor: number) {
   return Math.round(valor * 100)
 }
 
-export default function ModalLancamento({ equipeId, tipo, planoContas, lancamento, onClose, onSuccess }: Props) {
+export default function ModalLancamento({ equipeId, tipo, planoContas, bancos, lancamento, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false)
   const [aplicarATodos, setAplicarATodos] = useState(false)
   const [parcelas, setParcelas] = useState(lancamento?.numero_parcelas ?? 1)
@@ -318,6 +319,20 @@ export default function ModalLancamento({ equipeId, tipo, planoContas, lancament
                 ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1">Banco</label>
+            <select
+              name="banco_id"
+              defaultValue={lancamento?.banco_id ?? ''}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Nenhum</option>
+              {bancos.map(b => (
+                <option key={b.id} value={b.id}>{b.nome}</option>
+              ))}
+            </select>
           </div>
 
           {!lancamento && (

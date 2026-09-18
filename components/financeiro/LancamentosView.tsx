@@ -7,12 +7,13 @@ import { pagarLancamento, cancelarLancamento, excluirLancamento, excluirEAvancar
 import ModalLancamento from '@/components/financeiro/ModalLancamento'
 import ModalPreviewPdf from '@/components/ModalPreviewPdf'
 import { gerarPdfLancamentos } from '@/lib/pdf-lancamentos'
-import type { LancamentoComRelacoes, PlanoContas, TipoLancamento, StatusLancamento } from '@/types'
+import type { LancamentoComRelacoes, PlanoContas, Banco, TipoLancamento, StatusLancamento } from '@/types'
 
 interface Props {
   equipeId: string
   lancamentos: LancamentoComRelacoes[]
   planoContas: PlanoContas[]
+  bancos: Banco[]
   tipo: TipoLancamento
 }
 
@@ -112,7 +113,7 @@ function formatarData(data: Date | string) {
 }
 
 
-export default function LancamentosView({ equipeId, lancamentos: inicial, planoContas, tipo }: Props) {
+export default function LancamentosView({ equipeId, lancamentos: inicial, planoContas, bancos, tipo }: Props) {
   const [lancamentos, setLancamentos] = useState(inicial)
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<LancamentoComRelacoes | null>(null)
@@ -123,6 +124,7 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<StatusLancamento | 'TODOS'>('TODOS')
   const [filtroCategoria, setFiltroCategoria] = useState<string>('TODAS')
+  const [filtroBanco, setFiltroBanco] = useState<string>('TODOS')
   const [filtroMes, setFiltroMes] = useState<string>(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -154,12 +156,13 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
         dataFim,
         status: filtroStatus,
         plano_contas_id: filtroCategoria,
+        banco_id: filtroBanco,
       })
       setLancamentos(atualizados as never)
     } catch {
       toast.error('Erro ao carregar lançamentos.')
     }
-  }, [equipeId, tipo, modoData, filtroMes, filtroDataInicio, filtroDataFim, filtroStatus, filtroCategoria])
+  }, [equipeId, tipo, modoData, filtroMes, filtroDataInicio, filtroDataFim, filtroStatus, filtroCategoria, filtroBanco])
 
   useEffect(() => {
     if (!montado.current) { montado.current = true; return }
@@ -322,6 +325,17 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
             <option key={c.id} value={c.id}>{c.nome}</option>
           ))}
         </select>
+        <select
+          value={filtroBanco}
+          onChange={e => setFiltroBanco(e.target.value)}
+          className="bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-shrink-0"
+        >
+          <option value="TODOS">Todos os bancos</option>
+          <option value="SEM_BANCO">Sem banco</option>
+          {bancos.map(b => (
+            <option key={b.id} value={b.id}>{b.nome}</option>
+          ))}
+        </select>
         <div className="relative inline-flex flex-shrink-0 bg-surface border border-border rounded-lg p-1">
           <div
             className={`absolute top-1 left-1 h-[calc(100%-0.5rem)] w-24 rounded-md bg-indigo-600 transition-transform duration-200 ease-out ${modoData === 'PERIODO' ? 'translate-x-24' : 'translate-x-0'}`}
@@ -396,6 +410,7 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
                   <th className="text-left px-4 py-3">Descrição</th>
                   {tipo === 'DESPESA' && <th className="text-left px-4 py-3">Beneficiário</th>}
                   <th className="text-left px-4 py-3">Categoria</th>
+                  <th className="text-left px-4 py-3">Banco</th>
                   <th className="text-right px-4 py-3">Valor</th>
                   <th className="text-right px-4 py-3">Parciais</th>
                   <th className="text-right px-4 py-3">Restante</th>
@@ -424,6 +439,7 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
                       <td className="px-4 py-3 text-gray-400">{l.beneficiario ?? '—'}</td>
                     )}
                     <td className="px-4 py-3 text-gray-400">{l.plano_contas.nome}</td>
+                    <td className="px-4 py-3 text-gray-400">{l.banco?.nome ?? '—'}</td>
                     <td className={`px-4 py-3 text-right font-semibold ${tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
                       {formatarMoeda(Number(l.valor))}
                     </td>
@@ -486,6 +502,7 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
           equipeId={equipeId}
           tipo={tipo}
           planoContas={planoContas}
+          bancos={bancos}
           lancamento={editando ?? undefined}
           onClose={() => { setShowModal(false); setEditando(null) }}
           onSuccess={recarregarLancamentos}

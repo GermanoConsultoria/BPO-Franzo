@@ -11,14 +11,18 @@ export default async function ContasAPagarPage({ params }: { params: Promise<{ e
 
   const { equipeId } = await params
 
-  const [lancamentos, planoContas] = await Promise.all([
+  const [lancamentos, planoContas, bancos] = await Promise.all([
     prisma.lancamentoFinanceiro.findMany({
       where: { equipe_id: equipeId, tipo: 'DESPESA' },
-      include: { plano_contas: true, anexos: true, parciais: { orderBy: { dt_pagamento: 'asc' } } },
+      include: { plano_contas: true, banco: true, anexos: true, parciais: { orderBy: { dt_pagamento: 'asc' } } },
       orderBy: { dt_vencimento: 'asc' },
     }),
     prisma.planoContas.findMany({
       where: { equipe_id: equipeId, tipo: 'DESPESA', ativo: true },
+      orderBy: { nome: 'asc' },
+    }),
+    prisma.banco.findMany({
+      where: { equipe_id: equipeId, ativo: true },
       orderBy: { nome: 'asc' },
     }),
   ])
@@ -39,6 +43,7 @@ export default async function ContasAPagarPage({ params }: { params: Promise<{ e
         equipeId={equipeId}
         lancamentos={lancamentosSerializados as never}
         planoContas={planoContas}
+        bancos={bancos}
         tipo="DESPESA"
       />
     </div>
