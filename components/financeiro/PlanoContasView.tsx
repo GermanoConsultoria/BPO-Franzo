@@ -98,32 +98,32 @@ export default function PlanoContasView({ equipeId, contas: contasIniciais }: Pr
               <p className="text-sm text-gray-500 py-4 text-center border border-dashed border-border rounded-lg">Nenhuma conta cadastrada.</p>
             ) : (
               <div className="border border-border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface text-gray-400 text-xs uppercase">
+                <table className="w-full text-xs">
+                  <thead className="bg-surface text-gray-400 text-[11px] uppercase">
                     <tr>
-                      <th className="text-left px-4 py-2">Nome</th>
-                      <th className="text-center px-4 py-2">Lançamentos</th>
-                      <th className="text-center px-4 py-2">Status</th>
-                      <th className="px-4 py-2" />
+                      <th className="text-left px-3 py-2">Nome</th>
+                      <th className="text-center px-3 py-2">Lançamentos</th>
+                      <th className="text-center px-3 py-2">Status</th>
+                      <th className="px-3 py-2" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {lista.map(conta => (
                       <tr key={conta.id} className="hover:bg-surface/50 transition-colors">
-                        <td className={`px-4 py-3 font-medium ${!conta.ativo && 'opacity-40 line-through'}`}>{conta.nome}</td>
-                        <td className="px-4 py-3 text-center text-gray-400">{conta._count.lancamentos}</td>
-                        <td className="px-4 py-3 text-center">
+                        <td className={`px-3 py-2 font-medium ${!conta.ativo && 'opacity-40 line-through'}`}>{conta.nome}</td>
+                        <td className="px-3 py-2 text-center text-gray-400">{conta._count.lancamentos}</td>
+                        <td className="px-3 py-2 text-center">
                           <button onClick={() => handleToggle(conta.id)} className="text-gray-400 hover:text-indigo-400 transition-colors" title={conta.ativo ? 'Desativar' : 'Ativar'}>
-                            {conta.ativo ? <ToggleRight size={20} className="text-indigo-400" /> : <ToggleLeft size={20} />}
+                            {conta.ativo ? <ToggleRight size={17} className="text-indigo-400" /> : <ToggleLeft size={17} />}
                           </button>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2 justify-end">
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 justify-end">
                             <button onClick={() => abrirEditar(conta)} className="p-1 text-gray-400 hover:text-indigo-400 transition-colors" title="Editar">
-                              <Pencil size={15} />
+                              <Pencil size={13} />
                             </button>
                             <button onClick={() => handleExcluir(conta)} className="p-1 text-gray-400 hover:text-red-400 transition-colors" title="Excluir">
-                              <Trash2 size={15} />
+                              <Trash2 size={13} />
                             </button>
                           </div>
                         </td>

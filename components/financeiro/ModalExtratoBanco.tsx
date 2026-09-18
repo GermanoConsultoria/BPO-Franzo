@@ -118,26 +118,26 @@ export default function ModalExtratoBanco({ equipeId, banco, onClose }: Props) {
           ) : (
             <div className="border border-border rounded-lg overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-background text-gray-400 text-xs uppercase">
+                <table className="w-full text-xs">
+                  <thead className="bg-background text-gray-400 text-[11px] uppercase">
                     <tr>
-                      <th className="text-left px-4 py-2">Data</th>
-                      <th className="text-left px-4 py-2">Descrição</th>
-                      <th className="text-right px-4 py-2">Valor</th>
-                      <th className="text-right px-4 py-2">Saldo Anterior</th>
-                      <th className="text-right px-4 py-2">Saldo Atual</th>
+                      <th className="text-left px-3 py-2">Data</th>
+                      <th className="text-left px-3 py-2">Descrição</th>
+                      <th className="text-right px-3 py-2">Valor</th>
+                      <th className="text-right px-3 py-2">Saldo Ant.</th>
+                      <th className="text-right px-3 py-2">Saldo Atual</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {movimentos.map(m => (
                       <tr key={m.id} className="hover:bg-background/50 transition-colors">
-                        <td className="px-4 py-2.5 text-gray-300 whitespace-nowrap">{m.dt_pagamento ? formatarData(m.dt_pagamento) : '—'}</td>
-                        <td className="px-4 py-2.5 text-foreground">{m.descricao}</td>
-                        <td className={`px-4 py-2.5 text-right font-semibold whitespace-nowrap ${m.tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
+                        <td className="px-3 py-2 text-gray-300 whitespace-nowrap">{m.dt_pagamento ? formatarData(m.dt_pagamento) : '—'}</td>
+                        <td className="px-3 py-2 text-foreground max-w-[160px] truncate" title={m.descricao}>{m.descricao}</td>
+                        <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${m.tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
                           {m.tipo === 'DESPESA' ? '-' : '+'} {formatarMoeda(m.valor)}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-gray-400 whitespace-nowrap">{m.saldo_anterior !== null ? formatarMoeda(m.saldo_anterior) : '—'}</td>
-                        <td className="px-4 py-2.5 text-right text-gray-300 font-medium whitespace-nowrap">{m.saldo_atual !== null ? formatarMoeda(m.saldo_atual) : '—'}</td>
+                        <td className="px-3 py-2 text-right text-gray-400 whitespace-nowrap">{m.saldo_anterior !== null ? formatarMoeda(m.saldo_anterior) : '—'}</td>
+                        <td className="px-3 py-2 text-right text-gray-300 font-medium whitespace-nowrap">{m.saldo_atual !== null ? formatarMoeda(m.saldo_atual) : '—'}</td>
                       </tr>
                     ))}
                   </tbody>

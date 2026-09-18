@@ -108,15 +108,15 @@ export default function BancosView({ equipeId, bancos: bancosIniciais }: Props) 
         <p className="text-sm text-gray-500 py-4 text-center border border-dashed border-border rounded-lg">Nenhum banco cadastrado.</p>
       ) : (
         <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-surface text-gray-400 text-xs uppercase">
+          <table className="w-full text-xs">
+            <thead className="bg-surface text-gray-400 text-[11px] uppercase">
               <tr>
-                <th className="text-left px-4 py-2">Nome</th>
-                <th className="text-right px-4 py-2">Saldo Inicial</th>
-                <th className="text-right px-4 py-2">Saldo Atual</th>
-                <th className="text-center px-4 py-2">Lançamentos</th>
-                <th className="text-center px-4 py-2">Status</th>
-                <th className="px-4 py-2" />
+                <th className="text-left px-3 py-2">Nome</th>
+                <th className="text-right px-3 py-2">Saldo Inicial</th>
+                <th className="text-right px-3 py-2">Saldo Atual</th>
+                <th className="text-center px-3 py-2">Lançamentos</th>
+                <th className="text-center px-3 py-2">Status</th>
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -127,24 +127,24 @@ export default function BancosView({ equipeId, bancos: bancosIniciais }: Props) 
                   className="hover:bg-surface/50 transition-colors cursor-pointer"
                   title="Ver extrato"
                 >
-                  <td className={`px-4 py-3 font-medium ${!banco.ativo && 'opacity-40 line-through'}`}>{banco.nome}</td>
-                  <td className="px-4 py-3 text-right text-gray-400">{formatarMoeda(banco.saldo_inicial)}</td>
-                  <td className={`px-4 py-3 text-right font-semibold ${banco.saldo_atual < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  <td className={`px-3 py-2 font-medium ${!banco.ativo && 'opacity-40 line-through'}`}>{banco.nome}</td>
+                  <td className="px-3 py-2 text-right text-gray-400">{formatarMoeda(banco.saldo_inicial)}</td>
+                  <td className={`px-3 py-2 text-right font-semibold ${banco.saldo_atual < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                     {formatarMoeda(banco.saldo_atual)}
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-400">{banco._count.lancamentos}</td>
-                  <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-2 text-center text-gray-400">{banco._count.lancamentos}</td>
+                  <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
                     <button onClick={() => handleToggle(banco.id)} className="text-gray-400 hover:text-indigo-400 transition-colors" title={banco.ativo ? 'Desativar' : 'Ativar'}>
-                      {banco.ativo ? <ToggleRight size={20} className="text-indigo-400" /> : <ToggleLeft size={20} />}
+                      {banco.ativo ? <ToggleRight size={17} className="text-indigo-400" /> : <ToggleLeft size={17} />}
                     </button>
                   </td>
-                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center gap-2 justify-end">
+                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5 justify-end">
                       <button onClick={() => abrirEditar(banco)} className="p-1 text-gray-400 hover:text-indigo-400 transition-colors" title="Editar">
-                        <Pencil size={15} />
+                        <Pencil size={13} />
                       </button>
                       <button onClick={() => handleExcluir(banco)} className="p-1 text-gray-400 hover:text-red-400 transition-colors" title="Excluir">
-                        <Trash2 size={15} />
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </td>

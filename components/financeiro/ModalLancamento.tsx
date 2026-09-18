@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Paperclip, Plus, Trash2 } from 'lucide-react'
+import { X, Paperclip, Plus, Trash2, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
-import { criarLancamento, editarLancamento, salvarAnexoFinanceiro, excluirAnexoFinanceiro, registrarPagamentoParcial, excluirPagamentoParcial } from '@/app/actions'
+import { criarLancamento, editarLancamento, salvarAnexoFinanceiro, excluirAnexoFinanceiro, registrarPagamentoParcial, excluirPagamentoParcial, estornarPagamento } from '@/app/actions'
 import { UploadButton } from '@/lib/uploadthing'
 import ListaAnexos from '@/components/ListaAnexos'
 import type { LancamentoComRelacoes, PlanoContas, Banco, TipoLancamento, AnexoFinanceiro, PagamentoParcial } from '@/types'
@@ -54,6 +54,9 @@ export default function ModalLancamento({ equipeId, tipo, planoContas, bancos, l
   // Valor/banco já movimentaram dinheiro real — trava a edição desses dois campos.
   const temMovimento = !!lancamento && (lancamento.status === 'PAGO' || parciais.length > 0)
 
+  const [confirmandoEstorno, setConfirmandoEstorno] = useState(false)
+  const [estornando, setEstornando] = useState(false)
+
   function handleValorChange(e: React.ChangeEvent<HTMLInputElement>) {
     const apenasDigitos = e.target.value.replace(/\D/g, '')
     const centavos = parseInt(apenasDigitos || '0', 10)
@@ -90,6 +93,17 @@ export default function ModalLancamento({ equipeId, tipo, planoContas, bancos, l
     setParcialObs('')
     setShowParcialForm(false)
     toast.success(quitou ? 'Parcial registrado — lançamento quitado!' : 'Parcial registrado.')
+    onSuccess()
+  }
+
+  async function handleEstornar() {
+    if (!lancamento) return
+    setEstornando(true)
+    const r = await estornarPagamento(lancamento.id, equipeId)
+    setEstornando(false)
+    if (!r.success) { toast.error(r.error); return }
+    toast.success(tipo === 'DESPESA' ? 'Pagamento estornado.' : 'Recebimento estornado.')
+    onClose()
     onSuccess()
   }
 
@@ -235,7 +249,43 @@ export default function ModalLancamento({ equipeId, tipo, planoContas, bancos, l
               )}
 
               {lancamento.status === 'PAGO' ? (
-                <p className="text-xs text-emerald-400">Lançamento quitado.</p>
+                confirmandoEstorno ? (
+                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-2">
+                    <p className="text-xs text-yellow-300">
+                      Estornar? O lançamento volta para <span className="font-semibold">Pendente</span>
+                      {lancamento.banco ? <> e o valor retorna ao saldo do banco <span className="font-semibold">{lancamento.banco.nome}</span></> : null}.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmandoEstorno(false)}
+                        disabled={estornando}
+                        className="flex-1 py-1.5 rounded-lg border border-border text-xs hover:bg-surface-highlight transition-colors disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleEstornar}
+                        disabled={estornando}
+                        className="flex-1 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                      >
+                        {estornando ? 'Estornando...' : 'Confirmar estorno'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-emerald-400">Lançamento quitado.</p>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmandoEstorno(true)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-yellow-500 hover:text-yellow-400 transition-colors"
+                    >
+                      <RotateCcw size={13} /> Estornar
+                    </button>
+                  </div>
+                )
               ) : showParcialForm ? (
                 <div className="space-y-2 pt-1">
                   <div className="grid grid-cols-2 gap-2">

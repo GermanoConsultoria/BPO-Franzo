@@ -951,6 +951,55 @@ export async function pagarLancamento(id: string, dt_pagamento: string, equipeId
   }
 }
 
+/** Desfaz a quitação de um lançamento pago — volta para PENDENTE e estorna
+ * do banco só o que essa quitação final moveu (parciais anteriores, se
+ * houver, continuam registrados e valendo). Serve para corrigir um
+ * pagamento/recebimento lançado errado. */
+export async function estornarPagamento(id: string, equipeId: string): Promise<ActionResult<undefined>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+    if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
+
+    const lancamento = await prisma.lancamentoFinanceiro.findFirst({
+      where: { id, equipe_id: equipeId },
+      include: { parciais: { select: { valor: true } } },
+    })
+    if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
+    if (lancamento.status !== 'PAGO') return { success: false, error: 'Só é possível estornar um lançamento pago.' }
+
+    const jaPago = lancamento.parciais.reduce((s, p) => s + Number(p.valor), 0)
+    const restante = Math.round((Number(lancamento.valor) - jaPago) * 100) / 100
+
+    if (lancamento.banco_id && restante > 0) {
+      await prisma.$transaction(async (tx) => {
+        const { saldoAtual } = await movimentarSaldoBanco(tx, lancamento.banco_id!, lancamento.tipo, restante, -1)
+        await tx.lancamentoFinanceiro.update({
+          where: { id },
+          data: {
+            status: 'PENDENTE',
+            dt_pagamento: null,
+            ...(jaPago > 0 ? { saldo_atual: saldoAtual } : { saldo_anterior: null, saldo_atual: null }),
+          },
+        })
+      })
+    } else {
+      await prisma.lancamentoFinanceiro.update({
+        where: { id },
+        data: { status: 'PENDENTE', dt_pagamento: null },
+      })
+    }
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
+    return { success: true, data: undefined }
+  } catch {
+    return { success: false, error: 'Erro ao estornar pagamento.' }
+  }
+}
+
 export async function registrarPagamentoParcial(
   lancamentoId: string,
   valor: number,

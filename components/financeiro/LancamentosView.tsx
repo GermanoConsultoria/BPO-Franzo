@@ -2,8 +2,8 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
-import { Plus, CheckCircle, XCircle, Trash2, Search, ChevronDown, ChevronLeft, ChevronRight, FileDown } from 'lucide-react'
-import { pagarLancamento, cancelarLancamento, excluirLancamento, excluirEAvancarRecorrencia, excluirGrupoParcelas, excluirParcelasAPartirDesta, getLancamentosFinanceiros } from '@/app/actions'
+import { Plus, CheckCircle, XCircle, Trash2, Search, ChevronDown, ChevronLeft, ChevronRight, FileDown, RotateCcw } from 'lucide-react'
+import { pagarLancamento, estornarPagamento, cancelarLancamento, excluirLancamento, excluirEAvancarRecorrencia, excluirGrupoParcelas, excluirParcelasAPartirDesta, getLancamentosFinanceiros } from '@/app/actions'
 import ModalLancamento from '@/components/financeiro/ModalLancamento'
 import ModalPreviewPdf from '@/components/ModalPreviewPdf'
 import { gerarPdfLancamentos } from '@/lib/pdf-lancamentos'
@@ -121,6 +121,8 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
   const [dtPagamento, setDtPagamento] = useState(new Date().toISOString().split('T')[0])
   const [modalExcluirRecorrente, setModalExcluirRecorrente] = useState<string | null>(null)
   const [modalExcluirGrupo, setModalExcluirGrupo] = useState<LancamentoComRelacoes | null>(null)
+  const [modalEstornar, setModalEstornar] = useState<LancamentoComRelacoes | null>(null)
+  const [estornando, setEstornando] = useState(false)
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<StatusLancamento | 'TODOS'>('TODOS')
   const [filtroCategoria, setFiltroCategoria] = useState<string>('TODAS')
@@ -207,6 +209,17 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success('Lançamento cancelado.')
     setLancamentos(prev => prev.map(l => l.id === id ? { ...l, status: 'CANCELADO' } : l))
+  }
+
+  async function handleConfirmarEstorno() {
+    if (!modalEstornar) return
+    setEstornando(true)
+    const resultado = await estornarPagamento(modalEstornar.id, equipeId)
+    setEstornando(false)
+    if (!resultado.success) { toast.error(resultado.error); return }
+    toast.success(tipo === 'DESPESA' ? 'Pagamento estornado.' : 'Recebimento estornado.')
+    setModalEstornar(null)
+    await recarregarLancamentos()
   }
 
   async function handleExcluir(id: string) {
@@ -404,23 +417,23 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
       ) : (
         <div className="border border-border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface text-gray-400 text-xs uppercase">
+            <table className="w-full text-[10px] leading-tight">
+              <thead className="bg-surface text-gray-400 text-[9px] uppercase">
                 <tr>
-                  <th className="text-left px-4 py-3">Descrição</th>
-                  {tipo === 'DESPESA' && <th className="text-left px-4 py-3">Beneficiário</th>}
-                  <th className="text-left px-4 py-3">Categoria</th>
-                  <th className="text-left px-4 py-3">Banco</th>
-                  <th className="text-right px-4 py-3">Saldo Anterior</th>
-                  <th className="text-right px-4 py-3">Saldo Atual</th>
-                  <th className="text-right px-4 py-3">Valor</th>
-                  <th className="text-right px-4 py-3">Parciais</th>
-                  <th className="text-right px-4 py-3">Restante</th>
-                  <th className="text-center px-4 py-3">Vencimento</th>
-                  <th className="text-center px-4 py-3">Pagamento</th>
-                  <th className="text-center px-4 py-3">Nº Doc.</th>
-                  <th className="text-center px-4 py-3">Status</th>
-                  <th className="px-4 py-3" />
+                  <th className="text-left px-1.5 py-1.5">Descrição</th>
+                  {tipo === 'DESPESA' && <th className="text-left px-1.5 py-1.5">Beneficiário</th>}
+                  <th className="text-left px-1.5 py-1.5">Categoria</th>
+                  <th className="text-left px-1.5 py-1.5">Banco</th>
+                  <th className="text-right px-1.5 py-1.5">Saldo Ant.</th>
+                  <th className="text-right px-1.5 py-1.5">Saldo Atual</th>
+                  <th className="text-right px-1.5 py-1.5">Valor</th>
+                  <th className="text-right px-1.5 py-1.5">Parciais</th>
+                  <th className="text-right px-1.5 py-1.5">Restante</th>
+                  <th className="text-center px-1.5 py-1.5">Vencto.</th>
+                  <th className="text-center px-1.5 py-1.5">Pagto.</th>
+                  <th className="text-center px-1.5 py-1.5">Nº Doc.</th>
+                  <th className="text-center px-1.5 py-1.5">Status</th>
+                  <th className="px-1.5 py-1.5" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -430,65 +443,74 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
                     onClick={() => { setEditando(l); setShowModal(true) }}
                     className={`hover:bg-surface/50 transition-colors cursor-pointer ${isVencido(l) ? 'bg-red-500/5' : ''}`}
                   >
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-foreground">{l.descricao}</div>
+                    <td className="px-1.5 py-1.5 max-w-[130px]">
+                      <div className="font-medium text-foreground truncate" title={l.descricao}>{l.descricao}</div>
                       {l.numero_parcelas && l.numero_parcelas > 1 && (
-                        <div className="text-xs text-gray-500">{l.parcela_atual}/{l.numero_parcelas}x</div>
+                        <div className="text-gray-500">{l.parcela_atual}/{l.numero_parcelas}x</div>
                       )}
-                      {isVencido(l) && <div className="text-xs text-red-400">Vencido</div>}
+                      {isVencido(l) && <div className="text-red-400">Vencido</div>}
                     </td>
                     {tipo === 'DESPESA' && (
-                      <td className="px-4 py-3 text-gray-400">{l.beneficiario ?? '—'}</td>
+                      <td className="px-1.5 py-1.5 text-gray-400 max-w-[90px] truncate" title={l.beneficiario ?? undefined}>{l.beneficiario ?? '—'}</td>
                     )}
-                    <td className="px-4 py-3 text-gray-400">{l.plano_contas.nome}</td>
-                    <td className="px-4 py-3 text-gray-400">{l.banco?.nome ?? '—'}</td>
-                    <td className="px-4 py-3 text-right text-gray-400">{l.saldo_anterior !== null ? formatarMoeda(l.saldo_anterior) : '—'}</td>
-                    <td className="px-4 py-3 text-right text-gray-400">{l.saldo_atual !== null ? formatarMoeda(l.saldo_atual) : '—'}</td>
-                    <td className={`px-4 py-3 text-right font-semibold ${tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
+                    <td className="px-1.5 py-1.5 text-gray-400 max-w-[90px] truncate" title={l.plano_contas.nome}>{l.plano_contas.nome}</td>
+                    <td className="px-1.5 py-1.5 text-gray-400 max-w-[80px] truncate" title={l.banco?.nome}>{l.banco?.nome ?? '—'}</td>
+                    <td className="px-1.5 py-1.5 text-right text-gray-400 whitespace-nowrap">{l.saldo_anterior !== null ? formatarMoeda(l.saldo_anterior) : '—'}</td>
+                    <td className="px-1.5 py-1.5 text-right text-gray-400 whitespace-nowrap">{l.saldo_atual !== null ? formatarMoeda(l.saldo_atual) : '—'}</td>
+                    <td className={`px-1.5 py-1.5 text-right font-semibold whitespace-nowrap ${tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
                       {formatarMoeda(Number(l.valor))}
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-400">
+                    <td className="px-1.5 py-1.5 text-right text-gray-400 whitespace-nowrap">
                       {somaParciais(l) > 0 ? formatarMoeda(somaParciais(l)) : '—'}
                     </td>
-                    <td className={`px-4 py-3 text-right font-semibold ${tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
+                    <td className={`px-1.5 py-1.5 text-right font-semibold whitespace-nowrap ${tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
                       {somaParciais(l) > 0 ? formatarMoeda(Math.max(0, Number(l.valor) - somaParciais(l))) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-center text-gray-300">{formatarData(l.dt_vencimento)}</td>
-                    <td className="px-4 py-3 text-center text-gray-400">
+                    <td className="px-1.5 py-1.5 text-center text-gray-300 whitespace-nowrap">{formatarData(l.dt_vencimento)}</td>
+                    <td className="px-1.5 py-1.5 text-center text-gray-400 whitespace-nowrap">
                       {l.dt_pagamento ? formatarData(l.dt_pagamento) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-center text-gray-400">{l.numero_documento ?? '—'}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs border ${STATUS_COR[l.status]}`}>
+                    <td className="px-1.5 py-1.5 text-center text-gray-400 max-w-[70px] truncate" title={l.numero_documento ?? undefined}>{l.numero_documento ?? '—'}</td>
+                    <td className="px-1.5 py-1.5 text-center whitespace-nowrap">
+                      <span className={`inline-flex px-1.5 py-0.5 rounded-full border ${STATUS_COR[l.status]}`}>
                         {STATUS_LABEL[l.status]}
                       </span>
                     </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-1 justify-end">
+                    <td className="px-1 py-1.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-0.5 justify-end">
                         {l.status === 'PENDENTE' && (
                           <>
                             <button
                               onClick={() => { setModalPagar(l.id); setDtPagamento(new Date().toISOString().split('T')[0]) }}
-                              className="p-1.5 text-gray-400 hover:text-emerald-400 transition-colors"
+                              className="p-1 text-gray-400 hover:text-emerald-400 transition-colors"
                               title={tipo === 'DESPESA' ? 'Registrar pagamento' : 'Registrar recebimento'}
                             >
-                              <CheckCircle size={16} />
+                              <CheckCircle size={14} />
                             </button>
                             <button
                               onClick={() => handleCancelar(l.id)}
-                              className="p-1.5 text-gray-400 hover:text-yellow-400 transition-colors"
+                              className="p-1 text-gray-400 hover:text-yellow-400 transition-colors"
                               title="Cancelar"
                             >
-                              <XCircle size={16} />
+                              <XCircle size={14} />
                             </button>
                           </>
                         )}
+                        {l.status === 'PAGO' && (
+                          <button
+                            onClick={() => setModalEstornar(l)}
+                            className="p-1 text-gray-400 hover:text-yellow-400 transition-colors"
+                            title={tipo === 'DESPESA' ? 'Estornar pagamento' : 'Estornar recebimento'}
+                          >
+                            <RotateCcw size={13} />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleExcluir(l.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
+                          className="p-1 text-gray-400 hover:text-red-400 transition-colors"
                           title="Excluir"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </td>
@@ -613,6 +635,47 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
                   Confirmar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal estornar pagamento */}
+      {modalEstornar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-surface border border-border rounded-xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="mx-auto w-12 h-12 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mb-4">
+                <RotateCcw size={22} className="text-yellow-400" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground">
+                Estornar {tipo === 'DESPESA' ? 'pagamento' : 'recebimento'}?
+              </h2>
+              <p className="text-sm text-gray-400 mt-2">
+                <span className="text-foreground font-medium">{modalEstornar.descricao}</span>
+                {' — '}
+                <span className={tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}>{formatarMoeda(Number(modalEstornar.valor))}</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                O lançamento volta para <span className="font-medium text-yellow-400">Pendente</span>
+                {modalEstornar.banco ? <> e o valor retorna ao saldo do banco <span className="font-medium text-foreground">{modalEstornar.banco.nome}</span></> : null}.
+              </p>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                onClick={() => setModalEstornar(null)}
+                disabled={estornando}
+                className="flex-1 py-2.5 rounded-lg border border-border text-sm hover:bg-surface-highlight transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarEstorno}
+                disabled={estornando}
+                className="flex-1 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                {estornando ? 'Estornando...' : 'Estornar'}
+              </button>
             </div>
           </div>
         </div>
