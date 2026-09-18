@@ -508,7 +508,7 @@ async function reverterSaldoBancoDoLancamento(
   }
 }
 
-export async function criarBanco(formData: FormData): Promise<ActionResult<import('@prisma/client').Banco>> {
+export async function criarBanco(formData: FormData): Promise<ActionResult<import('@/types').Banco>> {
   try {
     const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
@@ -530,7 +530,7 @@ export async function criarBanco(formData: FormData): Promise<ActionResult<impor
     })
 
     revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
-    return { success: true, data: banco }
+    return { success: true, data: { ...banco, saldo_inicial: Number(banco.saldo_inicial), saldo_atual: Number(banco.saldo_atual) } }
   } catch {
     return { success: false, error: 'Erro ao criar banco.' }
   }
@@ -538,7 +538,7 @@ export async function criarBanco(formData: FormData): Promise<ActionResult<impor
 
 /** Só permite renomear — saldo_inicial não é editável após a criação, pois
  * saldo_atual já pode ter se afastado dele por movimentações reais. */
-export async function editarBanco(formData: FormData): Promise<ActionResult<import('@prisma/client').Banco>> {
+export async function editarBanco(formData: FormData): Promise<ActionResult<import('@/types').Banco>> {
   try {
     const usuario = await getUsuarioLogado()
     if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
@@ -561,7 +561,7 @@ export async function editarBanco(formData: FormData): Promise<ActionResult<impo
     })
 
     revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
-    return { success: true, data: atualizado }
+    return { success: true, data: { ...atualizado, saldo_inicial: Number(atualizado.saldo_inicial), saldo_atual: Number(atualizado.saldo_atual) } }
   } catch {
     return { success: false, error: 'Erro ao editar banco.' }
   }
@@ -604,6 +604,47 @@ export async function toggleAtivoBanco(id: string, equipeId: string): Promise<Ac
   } catch {
     return { success: false, error: 'Erro ao alterar status do banco.' }
   }
+}
+
+/** Extrato do banco: lançamentos que já movimentaram o saldo (saldo_atual
+ * preenchido), em ordem cronológica pela data do movimento. */
+export async function getExtratoBanco(
+  bancoId: string,
+  equipeId: string,
+  filtros?: { dataInicio?: string; dataFim?: string },
+) {
+  const usuario = await getUsuarioLogado()
+  if (!usuario) return []
+  if (!(await podeAcessarEquipe(usuario, equipeId))) return []
+
+  const where: import('@prisma/client').Prisma.LancamentoFinanceiroWhereInput = {
+    equipe_id: equipeId,
+    banco_id: bancoId,
+    saldo_atual: { not: null },
+  }
+
+  if (filtros?.dataInicio && filtros?.dataFim) {
+    where.dt_pagamento = {
+      gte: new Date(`${filtros.dataInicio}T00:00:00.000Z`),
+      lte: new Date(`${filtros.dataFim}T23:59:59.999Z`),
+    }
+  }
+
+  const lancamentos = await prisma.lancamentoFinanceiro.findMany({
+    where,
+    orderBy: { dt_pagamento: 'asc' },
+    select: {
+      id: true, descricao: true, tipo: true, valor: true,
+      dt_pagamento: true, saldo_anterior: true, saldo_atual: true,
+    },
+  })
+
+  return lancamentos.map(l => ({
+    ...l,
+    valor: Number(l.valor),
+    saldo_anterior: l.saldo_anterior !== null ? Number(l.saldo_anterior) : null,
+    saldo_atual: l.saldo_atual !== null ? Number(l.saldo_atual) : null,
+  }))
 }
 
 // --- LANÇAMENTOS FINANCEIROS ---

@@ -170,6 +170,17 @@ export type PagamentoParcial = {
   dt_insert: Date | string
 }
 
+/** Linha do extrato de um banco — lançamento que já movimentou o saldo. */
+export type MovimentoExtrato = {
+  id: string
+  descricao: string
+  tipo: TipoLancamento
+  valor: number
+  dt_pagamento: Date | string | null
+  saldo_anterior: number | null
+  saldo_atual: number | null
+}
+
 export type LancamentoComRelacoes = LancamentoFinanceiro & {
   plano_contas: PlanoContas
   banco: Banco | null

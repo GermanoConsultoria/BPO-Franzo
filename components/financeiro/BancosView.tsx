@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Pencil, Trash2, Plus, ToggleLeft, ToggleRight } from 'lucide-react'
 import { criarBanco, editarBanco, excluirBanco, toggleAtivoBanco } from '@/app/actions'
+import ModalExtratoBanco from '@/components/financeiro/ModalExtratoBanco'
 import type { Banco } from '@/types'
 
 type BancoComContagem = Banco & { _count: { lancamentos: number } }
@@ -24,6 +25,7 @@ export default function BancosView({ equipeId, bancos: bancosIniciais }: Props) 
   const [loading, setLoading] = useState(false)
   const [saldoCentavos, setSaldoCentavos] = useState(0)
   const [saldoDisplay, setSaldoDisplay] = useState('')
+  const [extratoBanco, setExtratoBanco] = useState<BancoComContagem | null>(null)
 
   function handleSaldoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const apenasDigitos = e.target.value.replace(/\D/g, '')
@@ -119,19 +121,24 @@ export default function BancosView({ equipeId, bancos: bancosIniciais }: Props) 
             </thead>
             <tbody className="divide-y divide-border">
               {bancos.map(banco => (
-                <tr key={banco.id} className="hover:bg-surface/50 transition-colors">
+                <tr
+                  key={banco.id}
+                  onClick={() => setExtratoBanco(banco)}
+                  className="hover:bg-surface/50 transition-colors cursor-pointer"
+                  title="Ver extrato"
+                >
                   <td className={`px-4 py-3 font-medium ${!banco.ativo && 'opacity-40 line-through'}`}>{banco.nome}</td>
                   <td className="px-4 py-3 text-right text-gray-400">{formatarMoeda(banco.saldo_inicial)}</td>
                   <td className={`px-4 py-3 text-right font-semibold ${banco.saldo_atual < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                     {formatarMoeda(banco.saldo_atual)}
                   </td>
                   <td className="px-4 py-3 text-center text-gray-400">{banco._count.lancamentos}</td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
                     <button onClick={() => handleToggle(banco.id)} className="text-gray-400 hover:text-indigo-400 transition-colors" title={banco.ativo ? 'Desativar' : 'Ativar'}>
                       {banco.ativo ? <ToggleRight size={20} className="text-indigo-400" /> : <ToggleLeft size={20} />}
                     </button>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-2 justify-end">
                       <button onClick={() => abrirEditar(banco)} className="p-1 text-gray-400 hover:text-indigo-400 transition-colors" title="Editar">
                         <Pencil size={15} />
@@ -197,6 +204,14 @@ export default function BancosView({ equipeId, bancos: bancosIniciais }: Props) 
             </form>
           </div>
         </div>
+      )}
+
+      {extratoBanco && (
+        <ModalExtratoBanco
+          equipeId={equipeId}
+          banco={extratoBanco}
+          onClose={() => setExtratoBanco(null)}
+        />
       )}
     </div>
   )
