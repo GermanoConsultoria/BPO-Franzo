@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import WhatsAppButton from "@/components/WhatsAppButton";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className={`${inter.className} bg-background text-foreground`}>
         {/* Apenas carrega os filhos. Quem desenha os menus é o layout da equipe! */}
         {children}
+        <WhatsAppButton />
         <Toaster richColors position="top-right" />
       </body>
     </html>

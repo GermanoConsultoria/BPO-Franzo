@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import EquipeTopbar from '@/components/EquipeTopbar'
 import { signOut } from 'next-auth/react'
-import { Menu, ChevronRight } from 'lucide-react'
+import { Menu, ChevronRight, Lock } from 'lucide-react'
 import Link from 'next/link'
 import type { Usuario, EquipeBasica } from '@/types'
 import { PERMISSOES, temPermissao } from '@/lib/permissoes'
@@ -94,6 +94,16 @@ export default function AuthenticatedLayout({ children, usuario, equipeAtual, mi
             </div>
 
             <div className="mt-auto pt-2 border-t border-border pb-4 px-2 bg-surface">
+                <div className="pb-1">
+                    <button
+                        disabled
+                        title="Financeiro (bloqueado)"
+                        className={`w-full group flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap text-gray-600 opacity-60 cursor-not-allowed ${!isSidebarOpen && 'justify-center'}`}
+                    >
+                        <Lock size={18} className="flex-shrink-0" />
+                        <span className={`ml-3 transition-opacity duration-200 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'}`}>Financeiro</span>
+                    </button>
+                </div>
                 {(usuario?.role === 'ADMIN'
                   || temPermissao(usuario, PERMISSOES.GERENCIAR_USUARIOS)
                   || temPermissao(usuario, PERMISSOES.GERENCIAR_EQUIPES)) && (
