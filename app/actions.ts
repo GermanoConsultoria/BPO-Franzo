@@ -607,7 +607,17 @@ export async function toggleAtivoBanco(id: string, equipeId: string): Promise<Ac
 }
 
 /** Extrato do banco: lançamentos que já movimentaram o saldo (saldo_atual
- * preenchido), em ordem cronológica pela data do movimento. */
+ * preenchido), em ordem cronológica pela data do movimento.
+ *
+ * O saldo corrido (saldo_anterior/saldo_atual) é recalculado aqui em vez de
+ * usar os valores gravados no lançamento: aqueles refletem a ordem real em
+ * que o pagamento foi registrado (podendo incluir dt_pagamento retroativa ou
+ * futura), então ao ordenar por dt_pagamento o saldo corrido gravado pode
+ * "pular" de forma inconsistente — inclusive aparentando ficar negativo —
+ * quando o período filtrado isola lançamentos que não foram pagos na mesma
+ * ordem cronológica da data escolhida. Recalculando a partir do saldo
+ * inicial do banco, em ordem de dt_pagamento, o saldo corrido fica sempre
+ * consistente com o período exibido. */
 export async function getExtratoBanco(
   bancoId: string,
   equipeId: string,
@@ -617,34 +627,30 @@ export async function getExtratoBanco(
   if (!usuario) return []
   if (!(await podeAcessarEquipe(usuario, equipeId))) return []
 
-  const where: import('@prisma/client').Prisma.LancamentoFinanceiroWhereInput = {
-    equipe_id: equipeId,
-    banco_id: bancoId,
-    saldo_atual: { not: null },
-  }
-
-  if (filtros?.dataInicio && filtros?.dataFim) {
-    where.dt_pagamento = {
-      gte: new Date(`${filtros.dataInicio}T00:00:00.000Z`),
-      lte: new Date(`${filtros.dataFim}T23:59:59.999Z`),
-    }
-  }
+  const banco = await prisma.banco.findFirst({ where: { id: bancoId, equipe_id: equipeId } })
+  if (!banco) return []
 
   const lancamentos = await prisma.lancamentoFinanceiro.findMany({
-    where,
+    where: { equipe_id: equipeId, banco_id: bancoId, saldo_atual: { not: null } },
     orderBy: { dt_pagamento: 'asc' },
-    select: {
-      id: true, descricao: true, tipo: true, valor: true,
-      dt_pagamento: true, saldo_anterior: true, saldo_atual: true,
-    },
+    select: { id: true, descricao: true, tipo: true, valor: true, dt_pagamento: true },
   })
 
-  return lancamentos.map(l => ({
-    ...l,
-    valor: Number(l.valor),
-    saldo_anterior: l.saldo_anterior !== null ? Number(l.saldo_anterior) : null,
-    saldo_atual: l.saldo_atual !== null ? Number(l.saldo_atual) : null,
-  }))
+  let saldoCorrido = Number(banco.saldo_inicial)
+  const comSaldo = lancamentos.map(l => {
+    const valor = Number(l.valor)
+    const saldo_anterior = saldoCorrido
+    saldoCorrido = Math.round((saldoCorrido + (l.tipo === 'RECEITA' ? valor : -valor)) * 100) / 100
+    return { ...l, valor, saldo_anterior, saldo_atual: saldoCorrido }
+  })
+
+  if (filtros?.dataInicio && filtros?.dataFim) {
+    const inicio = new Date(`${filtros.dataInicio}T00:00:00.000Z`)
+    const fim = new Date(`${filtros.dataFim}T23:59:59.999Z`)
+    return comSaldo.filter(l => l.dt_pagamento && l.dt_pagamento >= inicio && l.dt_pagamento <= fim)
+  }
+
+  return comSaldo
 }
 
 // --- LANÇAMENTOS FINANCEIROS ---
