@@ -11,13 +11,17 @@ export default async function BancosPage({ params }: { params: Promise<{ equipeI
 
   const { equipeId } = await params
 
-  const [bancos, equipe] = await Promise.all([
+  const [bancos, equipe, planoContas] = await Promise.all([
     prisma.banco.findMany({
       where: { equipe_id: equipeId },
       include: { _count: { select: { lancamentos: true } } },
       orderBy: { nome: 'asc' },
     }),
     prisma.equipe.findUnique({ where: { id: equipeId }, select: { nome: true } }),
+    prisma.planoContas.findMany({
+      where: { equipe_id: equipeId, ativo: true },
+      orderBy: { nome: 'asc' },
+    }),
   ])
 
   const bancosSerializados = bancos.map(b => ({
@@ -32,7 +36,7 @@ export default async function BancosPage({ params }: { params: Promise<{ equipeI
         <h1 className="text-2xl font-bold text-foreground">Bancos</h1>
         <p className="text-sm text-gray-500 mt-1">Contas bancárias deste cliente e o saldo movimentado pelos pagamentos e recebimentos.</p>
       </header>
-      <BancosView equipeId={equipeId} nomeCliente={equipe?.nome ?? ''} bancos={bancosSerializados as never} />
+      <BancosView equipeId={equipeId} nomeCliente={equipe?.nome ?? ''} bancos={bancosSerializados as never} planoContas={planoContas} />
     </div>
   )
 }

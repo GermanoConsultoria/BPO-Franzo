@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Pencil, Trash2, Plus, ToggleLeft, ToggleRight } from 'lucide-react'
 import { criarBanco, editarBanco, excluirBanco, toggleAtivoBanco } from '@/app/actions'
 import ModalExtratoBanco from '@/components/financeiro/ModalExtratoBanco'
-import type { Banco } from '@/types'
+import type { Banco, PlanoContas } from '@/types'
 
 type BancoComContagem = Banco & { _count: { lancamentos: number } }
 
@@ -13,13 +13,14 @@ interface Props {
   equipeId: string
   nomeCliente: string
   bancos: BancoComContagem[]
+  planoContas: PlanoContas[]
 }
 
 function formatarMoeda(valor: number) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export default function BancosView({ equipeId, nomeCliente, bancos: bancosIniciais }: Props) {
+export default function BancosView({ equipeId, nomeCliente, bancos: bancosIniciais, planoContas }: Props) {
   const [bancos, setBancos] = useState(bancosIniciais)
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<BancoComContagem | null>(null)
@@ -212,7 +213,14 @@ export default function BancosView({ equipeId, nomeCliente, bancos: bancosInicia
           equipeId={equipeId}
           nomeCliente={nomeCliente}
           banco={extratoBanco}
+          planoContas={planoContas}
           onClose={() => setExtratoBanco(null)}
+          onImportado={(saldoAtual, quantidade) => {
+            setBancos(prev => prev.map(b => b.id === extratoBanco.id
+              ? { ...b, saldo_atual: saldoAtual, _count: { lancamentos: b._count.lancamentos + quantidade } }
+              : b))
+            setExtratoBanco(prev => prev ? { ...prev, saldo_atual: saldoAtual } : prev)
+          }}
         />
       )}
     </div>

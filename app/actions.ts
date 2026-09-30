@@ -11,6 +11,7 @@ import type { ActionResult } from '@/types'
 import { z } from 'zod'
 import crypto from 'crypto'
 import { PERMISSOES, temPermissao } from '@/lib/permissoes'
+import { parseXlsxExtratoBuffer, type ResultadoParseExtrato } from '@/lib/xlsx-importar-extrato'
 
 const schemaCriarUsuario = z.object({
   nome: z.string().min(2, 'Nome deve ter ao menos 2 caracteres.').max(100),
@@ -651,6 +652,131 @@ export async function getExtratoBanco(
   }
 
   return comSaldo
+}
+
+/** Lê e interpreta a planilha .xlsx enviada na importação de extrato. Roda
+ * no servidor porque a leitura de .xlsx do ExcelJS depende de internals do
+ * Node que não existem no navegador. */
+export async function parseArquivoExtratoBanco(formData: FormData): Promise<ActionResult<ResultadoParseExtrato>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+
+    const equipeId = formData.get('equipeId') as string
+    if (!equipeId || !(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) {
+      return { success: false, error: 'Sem acesso a este cliente.' }
+    }
+
+    const arquivo = formData.get('arquivo') as File | null
+    if (!arquivo) return { success: false, error: 'Nenhum arquivo enviado.' }
+    if (arquivo.size > 10 * 1024 * 1024) return { success: false, error: 'Arquivo maior que 10MB.' }
+
+    const buffer = Buffer.from(await arquivo.arrayBuffer())
+    const resultado = await parseXlsxExtratoBuffer(buffer)
+
+    if (resultado.linhas.length === 0) {
+      return { success: false, error: 'Nenhum lançamento reconhecido nessa planilha.' }
+    }
+
+    return { success: true, data: resultado }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Erro ao ler a planilha.' }
+  }
+}
+
+export interface LinhaImportacaoExtrato {
+  data: string // yyyy-mm-dd
+  descricao: string
+  valor: number // sinalizado: negativo = despesa, positivo = receita
+  plano_contas_id: string
+}
+
+/** Importa um lote de movimentações já conciliadas (vindas do extrato real do
+ * banco) como lançamentos já PAGOS, aplicando cada um na ordem recebida
+ * (a tela de importação já garante essa ordem cronológica, com empates no
+ * mesmo dia decididos por quem importou) para que saldo_anterior/saldo_atual
+ * de cada um, e o saldo_atual final do banco, fiquem corretos. */
+export async function importarExtratoBanco(
+  equipeId: string,
+  bancoId: string,
+  linhas: LinhaImportacaoExtrato[],
+): Promise<ActionResult<{ quantidade: number; saldoFinal: number }>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+    if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) {
+      return { success: false, error: 'Sem acesso a este cliente.' }
+    }
+
+    const banco = await prisma.banco.findFirst({ where: { id: bancoId, equipe_id: equipeId } })
+    if (!banco) return { success: false, error: 'Banco não encontrado.' }
+
+    if (!Array.isArray(linhas) || linhas.length === 0) {
+      return { success: false, error: 'Nenhum lançamento para importar.' }
+    }
+    if (linhas.length > 500) {
+      return { success: false, error: 'Máximo de 500 lançamentos por importação.' }
+    }
+
+    const planosIds = [...new Set(linhas.map(l => l.plano_contas_id))]
+    const planosValidos = await prisma.planoContas.findMany({
+      where: { id: { in: planosIds }, equipe_id: equipeId },
+      select: { id: true },
+    })
+    const planosValidosSet = new Set(planosValidos.map(p => p.id))
+
+    for (const l of linhas) {
+      if (!l.descricao?.trim()) return { success: false, error: 'Há lançamentos sem descrição.' }
+      if (typeof l.valor !== 'number' || isNaN(l.valor) || l.valor === 0) {
+        return { success: false, error: 'Há lançamentos com valor inválido.' }
+      }
+      if (!l.data || isNaN(new Date(`${l.data}T12:00:00.000Z`).getTime())) {
+        return { success: false, error: 'Há lançamentos com data inválida.' }
+      }
+      if (!l.plano_contas_id || !planosValidosSet.has(l.plano_contas_id)) {
+        return { success: false, error: 'Há lançamentos sem categoria selecionada.' }
+      }
+    }
+
+    // Mantém a ordem recebida (o front já ordenou por data, com empates
+    // decididos por quem importou) — só reforça que datas fora de ordem não
+    // ficam misturadas entre si.
+    const ordenadas = [...linhas].sort((a, b) => a.data.localeCompare(b.data))
+
+    let saldoFinal = Number(banco.saldo_atual)
+    await prisma.$transaction(async (tx) => {
+      for (const l of ordenadas) {
+        const tipo: 'RECEITA' | 'DESPESA' = l.valor >= 0 ? 'RECEITA' : 'DESPESA'
+        const valorAbs = Math.round(Math.abs(l.valor) * 100) / 100
+        const dtMovimento = new Date(`${l.data}T12:00:00.000Z`)
+        const { saldoAnterior, saldoAtual } = await movimentarSaldoBanco(tx, bancoId, tipo, valorAbs, 1)
+        saldoFinal = saldoAtual
+        await tx.lancamentoFinanceiro.create({
+          data: {
+            equipe_id: equipeId,
+            tipo,
+            descricao: l.descricao.trim(),
+            valor: valorAbs,
+            dt_vencimento: dtMovimento,
+            dt_pagamento: dtMovimento,
+            plano_contas_id: l.plano_contas_id,
+            banco_id: bancoId,
+            status: 'PAGO',
+            saldo_anterior: saldoAnterior,
+            saldo_atual: saldoAtual,
+          },
+        })
+      }
+    })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    return { success: true, data: { quantidade: ordenadas.length, saldoFinal } }
+  } catch {
+    return { success: false, error: 'Erro ao importar extrato.' }
+  }
 }
 
 // --- LANÇAMENTOS FINANCEIROS ---

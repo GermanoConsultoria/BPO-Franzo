@@ -2,20 +2,23 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { X, FileDown } from 'lucide-react'
+import { X, FileDown, FileUp } from 'lucide-react'
 import { getExtratoBanco } from '@/app/actions'
 import ModalPreviewPdf from '@/components/ModalPreviewPdf'
 import PopupExportar from '@/components/financeiro/PopupExportar'
+import ModalImportarExtrato from '@/components/financeiro/ModalImportarExtrato'
 import { gerarPdfExtratoBanco } from '@/lib/pdf-extrato-banco'
 import { gerarXlsxExtratoBanco } from '@/lib/xlsx-extrato-banco'
 import { baixarArquivo } from '@/lib/baixar-arquivo'
-import type { Banco, MovimentoExtrato } from '@/types'
+import type { Banco, MovimentoExtrato, PlanoContas } from '@/types'
 
 interface Props {
   equipeId: string
   nomeCliente: string
   banco: Banco
+  planoContas: PlanoContas[]
   onClose: () => void
+  onImportado?: (saldoAtual: number, quantidade: number) => void
 }
 
 function formatarMoeda(valor: number) {
@@ -26,7 +29,7 @@ function formatarData(data: Date | string) {
   return new Date(data).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
 }
 
-export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, onClose }: Props) {
+export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, planoContas, onClose, onImportado }: Props) {
   const [movimentos, setMovimentos] = useState<MovimentoExtrato[]>([])
   const [carregando, setCarregando] = useState(true)
   const [dataInicio, setDataInicio] = useState('')
@@ -34,6 +37,8 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, onClos
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
   const [mostrarEscolhaExport, setMostrarEscolhaExport] = useState(false)
   const [gerandoXlsx, setGerandoXlsx] = useState(false)
+  const [mostrarImportar, setMostrarImportar] = useState(false)
+  const [saldoAtualLocal, setSaldoAtualLocal] = useState(banco.saldo_atual)
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -70,7 +75,7 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, onClos
   }
 
   function exportarPdf() {
-    const blob = gerarPdfExtratoBanco({ nomeCliente, nomeBanco: banco.nome, movimentos, labelPeriodo, saldoAtual: banco.saldo_atual })
+    const blob = gerarPdfExtratoBanco({ nomeCliente, nomeBanco: banco.nome, movimentos, labelPeriodo, saldoAtual: saldoAtualLocal })
     setPdfBlob(blob)
     setMostrarEscolhaExport(false)
   }
@@ -78,7 +83,7 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, onClos
   async function exportarXlsx() {
     setGerandoXlsx(true)
     try {
-      const blob = await gerarXlsxExtratoBanco({ nomeCliente, nomeBanco: banco.nome, movimentos, labelPeriodo, saldoAtual: banco.saldo_atual })
+      const blob = await gerarXlsxExtratoBanco({ nomeCliente, nomeBanco: banco.nome, movimentos, labelPeriodo, saldoAtual: saldoAtualLocal })
       baixarArquivo(blob, `Extrato - ${banco.nome}.xlsx`)
       setMostrarEscolhaExport(false)
     } catch {
@@ -88,6 +93,13 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, onClos
     }
   }
 
+  function handleImportado(saldoAtual: number, quantidade: number) {
+    setSaldoAtualLocal(saldoAtual)
+    setMostrarImportar(false)
+    carregar()
+    onImportado?.(saldoAtual, quantidade)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="bg-surface border border-border rounded-xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -95,7 +107,7 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, onClos
           <div>
             <h2 className="text-lg font-bold">Extrato — {banco.nome}</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Saldo atual: <span className={`font-semibold ${banco.saldo_atual < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{formatarMoeda(banco.saldo_atual)}</span>
+              Saldo atual: <span className={`font-semibold ${saldoAtualLocal < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{formatarMoeda(saldoAtualLocal)}</span>
             </p>
           </div>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-foreground transition-colors">
@@ -125,12 +137,20 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, onClos
                 </button>
               )}
             </div>
-            <button
-              onClick={abrirEscolhaExportar}
-              className="flex items-center gap-2 bg-surface border border-border text-foreground text-sm font-medium px-4 py-2 rounded-lg hover:bg-surface-highlight transition-colors flex-shrink-0"
-            >
-              <FileDown size={16} /> Exportar
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setMostrarImportar(true)}
+                className="flex items-center gap-2 bg-surface border border-border text-foreground text-sm font-medium px-4 py-2 rounded-lg hover:bg-surface-highlight transition-colors"
+              >
+                <FileUp size={16} /> Importar
+              </button>
+              <button
+                onClick={abrirEscolhaExportar}
+                className="flex items-center gap-2 bg-surface border border-border text-foreground text-sm font-medium px-4 py-2 rounded-lg hover:bg-surface-highlight transition-colors"
+              >
+                <FileDown size={16} /> Exportar
+              </button>
+            </div>
           </div>
 
           {carregando ? (
@@ -187,6 +207,16 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, onClos
         <ModalPreviewPdf
           pdfBlob={pdfBlob}
           onClose={() => setPdfBlob(null)}
+        />
+      )}
+
+      {mostrarImportar && (
+        <ModalImportarExtrato
+          equipeId={equipeId}
+          banco={{ ...banco, saldo_atual: saldoAtualLocal }}
+          planoContas={planoContas}
+          onClose={() => setMostrarImportar(false)}
+          onImportado={handleImportado}
         />
       )}
     </div>
