@@ -130,6 +130,82 @@ function SeletorMesBalancete({ value, onSelecionar }: { value: string; onSelecio
   )
 }
 
+function GraficoPorConta({
+  itens,
+  cor,
+  onSelecionarConta,
+}: {
+  itens: { plano_contas_id: string; nome: string; total: number }[]
+  cor: string
+  onSelecionarConta: (item: { plano_contas_id: string; nome: string; total: number }) => void
+}) {
+  const dados = [...itens].sort((a, b) => b.total - a.total)
+  if (dados.length === 0) {
+    return <p className="text-center text-gray-500 text-sm py-12">Nenhum lançamento no período.</p>
+  }
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={dados} margin={{ top: 5, right: 10, left: 10, bottom: 50 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
+        <XAxis dataKey="nome" tick={{ fontSize: 11, fill: '#9ca3af' }} angle={-25} textAnchor="end" interval={0} height={70} />
+        <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={v => `R$${(v / 1000).toFixed(1)}k`} domain={[0, 'auto']} />
+        <Tooltip content={<TooltipCustom />} />
+        <Bar
+          dataKey="total"
+          name="Total"
+          fill={cor}
+          radius={[4, 4, 0, 0]}
+          cursor="pointer"
+          onClick={(data: unknown) => {
+            const payload = (data as { payload?: typeof dados[number] })?.payload ?? (data as typeof dados[number])
+            onSelecionarConta(payload)
+          }}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+function GraficoLancamentosConta({
+  lancamentos,
+  cor,
+  onVoltar,
+}: {
+  lancamentos: { descricao: string; valor: number; status: string; dt_vencimento: Date }[]
+  cor: string
+  onVoltar: () => void
+}) {
+  const dados = lancamentos.map((l, i) => ({
+    nome: l.descricao || `Lançamento ${i + 1}`,
+    valor: l.valor,
+    status: l.status,
+  }))
+
+  return (
+    <div>
+      <button
+        onClick={onVoltar}
+        className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-foreground transition-colors mb-3"
+      >
+        <ChevronLeft size={14} /> Voltar para todas as contas
+      </button>
+      {dados.length === 0 ? (
+        <p className="text-center text-gray-500 text-sm py-12">Nenhum lançamento nessa conta.</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={dados} margin={{ top: 5, right: 10, left: 10, bottom: 70 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
+            <XAxis dataKey="nome" tick={{ fontSize: 10, fill: '#9ca3af' }} angle={-30} textAnchor="end" interval={0} height={90} />
+            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={v => `R$${(v / 1000).toFixed(1)}k`} domain={[0, 'auto']} />
+            <Tooltip content={<TooltipCustom />} />
+            <Bar dataKey="valor" name="Valor" fill={cor} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  )
+}
+
 export default function BalanceteView({ equipeId, nomeCliente, balancete, dataInicio, dataFim }: Props) {
   const router = useRouter()
   const [modo, setModo] = useState<'mes' | 'ano' | 'periodo'>('mes')
@@ -138,6 +214,12 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
   const [periodoIni, setPeriodoIni] = useState(dataInicio)
   const [periodoFim, setPeriodoFim] = useState(dataFim)
   const [tipoGrafico, setTipoGrafico] = useState<'barra' | 'linha' | 'pizza'>('barra')
+  const [filtroGrafico, setFiltroGrafico] = useState<'todas' | 'receitas' | 'despesas'>('todas')
+  const [contaAbertaGrafico, setContaAbertaGrafico] = useState<{ plano_contas_id: string; nome: string } | null>(null)
+
+  useEffect(() => {
+    setContaAbertaGrafico(null)
+  }, [dataInicio, dataFim, filtroGrafico])
   const [preparandoExportGeral, setPreparandoExportGeral] = useState(false)
   const [gerandoPdfGeral, setGerandoPdfGeral] = useState(false)
   const [pdfBlobGeral, setPdfBlobGeral] = useState<Blob | null>(null)
@@ -288,30 +370,71 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
       </div>
 
       {/* Gráfico */}
-      {(b.dados_mensais.length > 0 || tipoGrafico === 'pizza') && (
+      {(b.dados_mensais.length > 0 || tipoGrafico === 'pizza' || (modo === 'mes' && filtroGrafico !== 'todas')) && (
         <div className="bg-surface border border-border rounded-xl p-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
             <h2 className="text-sm font-semibold text-gray-300">
-              {tipoGrafico === 'pizza' ? 'Distribuição do Período' : 'Receitas × Despesas × Lucro por Mês'}
+              {modo === 'mes' && filtroGrafico !== 'todas' && contaAbertaGrafico ? `Lançamentos — ${contaAbertaGrafico.nome}`
+                : modo === 'mes' && filtroGrafico === 'receitas' ? 'Receitas por Conta'
+                : modo === 'mes' && filtroGrafico === 'despesas' ? 'Despesas por Conta'
+                : tipoGrafico === 'pizza' ? 'Distribuição do Período' : 'Receitas × Despesas × Lucro por Mês'}
             </h2>
-            <div className="flex gap-1">
-              {([
-                { id: 'barra', label: 'Barra' },
-                { id: 'linha', label: 'Linha' },
-                { id: 'pizza', label: 'Pizza' },
-              ] as const).map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setTipoGrafico(t.id)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${tipoGrafico === t.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-background border-border text-gray-400 hover:text-foreground'}`}
-                >
-                  {t.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-3">
+              {modo === 'mes' && (
+                <div className="flex gap-1">
+                  {([
+                    { id: 'todas', label: 'Todas' },
+                    { id: 'receitas', label: 'Receitas' },
+                    { id: 'despesas', label: 'Despesas' },
+                  ] as const).map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setFiltroGrafico(f.id)}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${filtroGrafico === f.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-background border-border text-gray-400 hover:text-foreground'}`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!(modo === 'mes' && filtroGrafico !== 'todas') && (
+                <div className="flex gap-1">
+                  {([
+                    { id: 'barra', label: 'Barra' },
+                    { id: 'linha', label: 'Linha' },
+                    { id: 'pizza', label: 'Pizza' },
+                  ] as const).map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTipoGrafico(t.id)}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${tipoGrafico === t.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-background border-border text-gray-400 hover:text-foreground'}`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {tipoGrafico === 'barra' && (
+          {modo === 'mes' && filtroGrafico !== 'todas' && contaAbertaGrafico && (
+            <GraficoLancamentosConta
+              lancamentos={b.lancamentos_por_conta[contaAbertaGrafico.plano_contas_id] ?? []}
+              cor={filtroGrafico === 'receitas' ? '#10b981' : '#ef4444'}
+              onVoltar={() => setContaAbertaGrafico(null)}
+            />
+          )}
+
+          {modo === 'mes' && filtroGrafico === 'receitas' && !contaAbertaGrafico && (
+            <GraficoPorConta itens={b.receitas_por_conta} cor="#10b981" onSelecionarConta={item => setContaAbertaGrafico(item)} />
+          )}
+
+          {modo === 'mes' && filtroGrafico === 'despesas' && !contaAbertaGrafico && (
+            <GraficoPorConta itens={b.despesas_por_conta} cor="#ef4444" onSelecionarConta={item => setContaAbertaGrafico(item)} />
+          )}
+
+          {!(modo === 'mes' && filtroGrafico !== 'todas') && tipoGrafico === 'barra' && (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={b.dados_mensais} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
@@ -326,7 +449,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
             </ResponsiveContainer>
           )}
 
-          {tipoGrafico === 'linha' && (
+          {!(modo === 'mes' && filtroGrafico !== 'todas') && tipoGrafico === 'linha' && (
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={b.dados_mensais} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
@@ -341,7 +464,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
             </ResponsiveContainer>
           )}
 
-          {tipoGrafico === 'pizza' && (() => {
+          {!(modo === 'mes' && filtroGrafico !== 'todas') && tipoGrafico === 'pizza' && (() => {
             const dadosPizza = [
               { name: 'Receitas', value: b.receitas, color: '#10b981' },
               { name: 'Despesas', value: b.despesas, color: '#ef4444' },
