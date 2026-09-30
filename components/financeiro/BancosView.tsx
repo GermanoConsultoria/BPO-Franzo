@@ -11,6 +11,7 @@ type BancoComContagem = Banco & { _count: { lancamentos: number } }
 
 interface Props {
   equipeId: string
+  nomeCliente: string
   bancos: BancoComContagem[]
 }
 
@@ -18,7 +19,7 @@ function formatarMoeda(valor: number) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export default function BancosView({ equipeId, bancos: bancosIniciais }: Props) {
+export default function BancosView({ equipeId, nomeCliente, bancos: bancosIniciais }: Props) {
   const [bancos, setBancos] = useState(bancosIniciais)
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<BancoComContagem | null>(null)
@@ -209,6 +210,7 @@ export default function BancosView({ equipeId, bancos: bancosIniciais }: Props) 
       {extratoBanco && (
         <ModalExtratoBanco
           equipeId={equipeId}
+          nomeCliente={nomeCliente}
           banco={extratoBanco}
           onClose={() => setExtratoBanco(null)}
         />

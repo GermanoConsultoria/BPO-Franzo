@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
+import { desenharCabecalhoPdf, desenharRodapePdf, INICIO_CONTEUDO_PDF } from '@/lib/pdf-cabecalho'
 
 interface ItemConta {
   plano_contas_id: string
@@ -28,41 +29,6 @@ function formatarData(data: Date | string) {
   return new Date(data).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
 }
 
-function desenharCabecalho(doc: jsPDF, titulo: string, nomeCliente: string, labelPeriodo: string) {
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(20)
-  doc.text(titulo, 14, 16)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.setTextColor(70)
-  doc.text(nomeCliente, 14, 23)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(110)
-  doc.text(`Período: ${labelPeriodo}`, 14, 29)
-  doc.text(
-    `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
-    14,
-    34
-  )
-}
-
-function desenharRodape(doc: jsPDF) {
-  const totalPaginas = doc.getNumberOfPages()
-  for (let i = 1; i <= totalPaginas; i++) {
-    doc.setPage(i)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(150)
-    const largura = doc.internal.pageSize.getWidth()
-    const altura = doc.internal.pageSize.getHeight()
-    doc.text(`Página ${i} de ${totalPaginas}`, largura - 14, altura - 8, { align: 'right' })
-  }
-}
-
 interface ParamsBase {
   titulo: string
   nomeCliente: string
@@ -74,7 +40,7 @@ interface ParamsBase {
 
 export function gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque }: ParamsBase): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  desenharCabecalho(doc, titulo, nomeCliente, labelPeriodo)
+  desenharCabecalhoPdf(doc, titulo, nomeCliente, labelPeriodo)
 
   const ordenados = [...itens].sort((a, b) => b.total - a.total)
   const linhas = ordenados.map(item => [
@@ -85,7 +51,7 @@ export function gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPe
   linhas.push(['Total', formatarMoeda(total), '100%'])
 
   autoTable(doc, {
-    startY: 39,
+    startY: INICIO_CONTEUDO_PDF,
     head: [['Conta', 'Total', '%']],
     body: linhas,
     styles: { fontSize: 9, cellPadding: 2.5, textColor: 30 },
@@ -99,7 +65,7 @@ export function gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPe
     },
   })
 
-  desenharRodape(doc)
+  desenharRodapePdf(doc)
   return doc.output('blob')
 }
 
@@ -109,10 +75,10 @@ interface ParamsDetalhado extends ParamsBase {
 
 export function gerarPdfContaDetalhado({ titulo, nomeCliente, itens, labelPeriodo, corDestaque, lancamentosPorConta }: ParamsDetalhado): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  desenharCabecalho(doc, titulo, nomeCliente, labelPeriodo)
+  desenharCabecalhoPdf(doc, titulo, nomeCliente, labelPeriodo)
 
   const ordenados = [...itens].sort((a, b) => b.total - a.total)
-  let y = 39
+  let y = INICIO_CONTEUDO_PDF
   const alturaPagina = doc.internal.pageSize.getHeight()
 
   for (const item of ordenados) {
@@ -156,6 +122,6 @@ export function gerarPdfContaDetalhado({ titulo, nomeCliente, itens, labelPeriod
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   }
 
-  desenharRodape(doc)
+  desenharRodapePdf(doc)
   return doc.output('blob')
 }

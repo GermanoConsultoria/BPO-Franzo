@@ -6,11 +6,15 @@ import { Plus, CheckCircle, XCircle, Trash2, Search, ChevronDown, ChevronLeft, C
 import { pagarLancamento, estornarPagamento, cancelarLancamento, excluirLancamento, excluirEAvancarRecorrencia, excluirGrupoParcelas, excluirParcelasAPartirDesta, getLancamentosFinanceiros } from '@/app/actions'
 import ModalLancamento from '@/components/financeiro/ModalLancamento'
 import ModalPreviewPdf from '@/components/ModalPreviewPdf'
+import PopupExportar from '@/components/financeiro/PopupExportar'
 import { gerarPdfLancamentos } from '@/lib/pdf-lancamentos'
+import { gerarXlsxLancamentos } from '@/lib/xlsx-lancamentos'
+import { baixarArquivo } from '@/lib/baixar-arquivo'
 import type { LancamentoComRelacoes, PlanoContas, Banco, TipoLancamento, StatusLancamento } from '@/types'
 
 interface Props {
   equipeId: string
+  nomeCliente: string
   lancamentos: LancamentoComRelacoes[]
   planoContas: PlanoContas[]
   bancos: Banco[]
@@ -113,7 +117,7 @@ function formatarData(data: Date | string) {
 }
 
 
-export default function LancamentosView({ equipeId, lancamentos: inicial, planoContas, bancos, tipo }: Props) {
+export default function LancamentosView({ equipeId, nomeCliente, lancamentos: inicial, planoContas, bancos, tipo }: Props) {
   const [lancamentos, setLancamentos] = useState(inicial)
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<LancamentoComRelacoes | null>(null)
@@ -135,6 +139,8 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
   const [filtroDataInicio, setFiltroDataInicio] = useState<string>('')
   const [filtroDataFim, setFiltroDataFim] = useState<string>('')
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
+  const [mostrarEscolhaExport, setMostrarEscolhaExport] = useState(false)
+  const [gerandoXlsx, setGerandoXlsx] = useState(false)
 
   const montado = useRef(false)
 
@@ -294,13 +300,31 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
       ? 'Todos os meses'
       : new Date(Number(filtroMes.split('-')[0]), Number(filtroMes.split('-')[1]) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
-  function handleExportarPdf() {
+  function abrirEscolhaExportar() {
     if (lancamentosFiltrados.length === 0) {
       toast.error('Não há lançamentos para exportar com os filtros atuais.')
       return
     }
-    const blob = gerarPdfLancamentos({ lancamentos: lancamentosFiltrados, tipo, labelPeriodo })
+    setMostrarEscolhaExport(true)
+  }
+
+  function exportarPdf() {
+    const blob = gerarPdfLancamentos({ nomeCliente, lancamentos: lancamentosFiltrados, tipo, labelPeriodo })
     setPdfBlob(blob)
+    setMostrarEscolhaExport(false)
+  }
+
+  async function exportarXlsx() {
+    setGerandoXlsx(true)
+    try {
+      const blob = await gerarXlsxLancamentos({ nomeCliente, lancamentos: lancamentosFiltrados, tipo, labelPeriodo })
+      baixarArquivo(blob, `${tipo === 'DESPESA' ? 'Contas a Pagar' : 'Contas a Receber'}.xlsx`)
+      setMostrarEscolhaExport(false)
+    } catch {
+      toast.error('Erro ao gerar XLSX.')
+    } finally {
+      setGerandoXlsx(false)
+    }
   }
 
   return (
@@ -402,10 +426,10 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
           <Plus size={16} /> {tipo === 'DESPESA' ? 'Nova Despesa' : 'Nova Receita'}
         </button>
         <button
-          onClick={handleExportarPdf}
+          onClick={abrirEscolhaExportar}
           className="flex items-center gap-2 bg-surface border border-border text-foreground text-sm font-medium px-4 py-2 rounded-lg hover:bg-surface-highlight transition-colors flex-shrink-0"
         >
-          <FileDown size={16} /> Exportar PDF
+          <FileDown size={16} /> Exportar
         </button>
       </div>
 
@@ -679,6 +703,17 @@ export default function LancamentosView({ equipeId, lancamentos: inicial, planoC
             </div>
           </div>
         </div>
+      )}
+
+      {mostrarEscolhaExport && (
+        <PopupExportar
+          titulo="Exportar"
+          descricao={`${tipo === 'DESPESA' ? 'Contas a Pagar' : 'Contas a Receber'} — como deseja exportar?`}
+          gerandoXlsx={gerandoXlsx}
+          onEscolherPdf={exportarPdf}
+          onEscolherXlsx={exportarXlsx}
+          onCancelar={() => setMostrarEscolhaExport(false)}
+        />
       )}
 
       {/* Modal preview PDF */}

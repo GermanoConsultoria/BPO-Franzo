@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
+import { desenharCabecalhoPdf, desenharRodapePdf, INICIO_CONTEUDO_PDF } from '@/lib/pdf-cabecalho'
 import type { MovimentoExtrato } from '@/types'
 
 function formatarMoeda(valor: number) {
@@ -11,34 +12,16 @@ function formatarData(data: Date | string) {
 }
 
 interface GerarPdfExtratoParams {
+  nomeCliente: string
   nomeBanco: string
   movimentos: MovimentoExtrato[]
   labelPeriodo: string
   saldoAtual: number
 }
 
-export function gerarPdfExtratoBanco({ nomeBanco, movimentos, labelPeriodo, saldoAtual }: GerarPdfExtratoParams): Blob {
+export function gerarPdfExtratoBanco({ nomeCliente, nomeBanco, movimentos, labelPeriodo, saldoAtual }: GerarPdfExtratoParams): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(20)
-  doc.text('Extrato Bancário', 14, 16)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.setTextColor(70)
-  doc.text(nomeBanco, 14, 23)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(110)
-  doc.text(`Período: ${labelPeriodo}`, 14, 29)
-  doc.text(
-    `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
-    14,
-    34
-  )
+  desenharCabecalhoPdf(doc, `Extrato Bancário — ${nomeBanco}`, nomeCliente, labelPeriodo)
 
   const linhas = movimentos.map(m => [
     m.dt_pagamento ? formatarData(m.dt_pagamento) : '—',
@@ -49,7 +32,7 @@ export function gerarPdfExtratoBanco({ nomeBanco, movimentos, labelPeriodo, sald
   ])
 
   autoTable(doc, {
-    startY: 39,
+    startY: INICIO_CONTEUDO_PDF,
     head: [['Data', 'Descrição', 'Valor', 'Saldo Anterior', 'Saldo Atual']],
     body: linhas,
     styles: { fontSize: 9, cellPadding: 2.5, textColor: 30 },
@@ -76,16 +59,6 @@ export function gerarPdfExtratoBanco({ nomeBanco, movimentos, labelPeriodo, sald
   doc.setTextColor(20)
   doc.text(`Saldo atual: ${formatarMoeda(saldoAtual)}`, 14, y)
 
-  const totalPaginas = doc.getNumberOfPages()
-  for (let i = 1; i <= totalPaginas; i++) {
-    doc.setPage(i)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(150)
-    const largura = doc.internal.pageSize.getWidth()
-    const altura = doc.internal.pageSize.getHeight()
-    doc.text(`Página ${i} de ${totalPaginas}`, largura - 14, altura - 8, { align: 'right' })
-  }
-
+  desenharRodapePdf(doc)
   return doc.output('blob')
 }

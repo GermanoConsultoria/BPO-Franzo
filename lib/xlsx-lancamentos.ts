@@ -1,16 +1,10 @@
-import jsPDF from 'jspdf'
-import { autoTable } from 'jspdf-autotable'
-import { desenharCabecalhoPdf, desenharRodapePdf, INICIO_CONTEUDO_PDF } from '@/lib/pdf-cabecalho'
 import type { LancamentoComRelacoes, TipoLancamento, StatusLancamento } from '@/types'
+import { adicionarCabecalhoXlsx, adicionarCabecalhoTabelaXlsx, FORMATO_MOEDA_XLSX } from '@/lib/xlsx-cabecalho'
 
 const STATUS_LABEL: Record<StatusLancamento, string> = {
   PENDENTE: 'Pendente',
   PAGO: 'Pago',
   CANCELADO: 'Cancelado',
-}
-
-function formatarMoeda(valor: number) {
-  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function formatarData(data: Date | string) {
@@ -25,61 +19,55 @@ function restanteDe(l: LancamentoComRelacoes) {
   return Math.max(0, Math.round((Number(l.valor) - totalParciais(l)) * 100) / 100)
 }
 
-interface GerarPdfParams {
+interface GerarXlsxParams {
   nomeCliente: string
   lancamentos: LancamentoComRelacoes[]
   tipo: TipoLancamento
   labelPeriodo: string
 }
 
-export function gerarPdfLancamentos({ nomeCliente, lancamentos, tipo, labelPeriodo }: GerarPdfParams): Blob {
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+export async function gerarXlsxLancamentos({ nomeCliente, lancamentos, tipo, labelPeriodo }: GerarXlsxParams): Promise<Blob> {
+  const ExcelJS = (await import('exceljs')).default
   const titulo = tipo === 'DESPESA' ? 'Contas a Pagar' : 'Contas a Receber'
-  const corDestaque: [number, number, number] = tipo === 'DESPESA' ? [185, 28, 28] : [4, 120, 87]
+  const corDestaque = tipo === 'DESPESA' ? 'FFB91C1C' : 'FF047857'
   const rotuloPago = tipo === 'DESPESA' ? 'pago' : 'recebido'
 
-  desenharCabecalhoPdf(doc, titulo, nomeCliente, labelPeriodo)
+  const workbook = new ExcelJS.Workbook()
+  const ws = workbook.addWorksheet(titulo)
+
+  adicionarCabecalhoXlsx(ws, titulo, nomeCliente, labelPeriodo)
 
   const cabecalho = tipo === 'DESPESA'
     ? ['Descrição', 'Beneficiário', 'Categoria', 'Valor', 'Parciais', 'Restante', 'Vencimento', 'Pagamento', 'Nº Doc.', 'Status']
     : ['Descrição', 'Categoria', 'Valor', 'Parciais', 'Restante', 'Vencimento', 'Pagamento', 'Nº Doc.', 'Status']
+  adicionarCabecalhoTabelaXlsx(ws, cabecalho, corDestaque)
 
-  const colunaValorIndex = tipo === 'DESPESA' ? 3 : 2
+  const colunaValorIndex = tipo === 'DESPESA' ? 4 : 3
   const colunaParciaisIndex = colunaValorIndex + 1
   const colunaRestanteIndex = colunaValorIndex + 2
 
-  const linhas = lancamentos.map(l => {
+  for (const l of lancamentos) {
     const descricao = l.descricao + (l.numero_parcelas && l.numero_parcelas > 1 ? ` (${l.parcela_atual}/${l.numero_parcelas})` : '')
     const pago = totalParciais(l)
-    const linha = [descricao]
+    const linha: (string | number)[] = [descricao]
     if (tipo === 'DESPESA') linha.push(l.beneficiario ?? '—')
     linha.push(
       l.plano_contas.nome,
-      formatarMoeda(Number(l.valor)),
-      pago > 0 ? formatarMoeda(pago) : '—',
-      pago > 0 ? formatarMoeda(restanteDe(l)) : '—',
+      Number(l.valor),
+      pago > 0 ? pago : '',
+      pago > 0 ? restanteDe(l) : '',
       formatarData(l.dt_vencimento),
       l.dt_pagamento ? formatarData(l.dt_pagamento) : '—',
       l.numero_documento ?? '—',
-      STATUS_LABEL[l.status] ?? l.status
+      STATUS_LABEL[l.status] ?? l.status,
     )
-    return linha
-  })
-
-  autoTable(doc, {
-    startY: INICIO_CONTEUDO_PDF,
-    head: [cabecalho],
-    body: linhas,
-    styles: { fontSize: 8, cellPadding: 2.2, textColor: 30 },
-    headStyles: { fillColor: corDestaque, textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [246, 247, 249] },
-    columnStyles: {
-      [colunaValorIndex]: { halign: 'right', cellWidth: 24 },
-      [colunaParciaisIndex]: { halign: 'right', cellWidth: 24 },
-      [colunaRestanteIndex]: { halign: 'right', cellWidth: 24 },
-    },
-    margin: { left: 14, right: 14 },
-  })
+    const row = ws.addRow(linha)
+    row.getCell(colunaValorIndex).numFmt = FORMATO_MOEDA_XLSX
+    if (pago > 0) {
+      row.getCell(colunaParciaisIndex).numFmt = FORMATO_MOEDA_XLSX
+      row.getCell(colunaRestanteIndex).numFmt = FORMATO_MOEDA_XLSX
+    }
+  }
 
   const pagoQuitados = lancamentos.filter(l => l.status === 'PAGO').reduce((s, l) => s + Number(l.valor), 0)
   const pendentes = lancamentos.filter(l => l.status === 'PENDENTE').reduce((s, l) => s + Number(l.valor), 0)
@@ -87,16 +75,21 @@ export function gerarPdfLancamentos({ nomeCliente, lancamentos, tipo, labelPerio
   const totalPago = Math.round((pagoQuitados + pagoParcial) * 100) / 100
   const totalPendentes = Math.round((pendentes - pagoParcial) * 100) / 100
 
-  const y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+  function linhaTotal(label: string, valor: number) {
+    const row = ws.addRow([label, valor])
+    row.getCell(1).font = { bold: true }
+    row.getCell(2).font = { bold: true }
+    row.getCell(2).numFmt = FORMATO_MOEDA_XLSX
+  }
 
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(20)
-  doc.text(`Total ${rotuloPago}: ${formatarMoeda(totalPago)}`, 14, y)
-  doc.text(`Pendentes: ${formatarMoeda(pendentes)}`, 14, y + 6)
-  doc.text(`${tipo === 'DESPESA' ? 'Pago' : 'Recebido'} parcial: ${formatarMoeda(pagoParcial)}`, 14, y + 12)
-  doc.text(`Total pendentes: ${formatarMoeda(totalPendentes)}`, 14, y + 18)
+  ws.addRow([])
+  linhaTotal(`Total ${rotuloPago}:`, totalPago)
+  linhaTotal('Pendentes:', pendentes)
+  linhaTotal(`${tipo === 'DESPESA' ? 'Pago' : 'Recebido'} parcial:`, pagoParcial)
+  linhaTotal('Total pendentes:', totalPendentes)
 
-  desenharRodapePdf(doc)
-  return doc.output('blob')
+  ws.columns = cabecalho.map((_, i) => ({ width: i === 0 ? 32 : 16 }))
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
 }

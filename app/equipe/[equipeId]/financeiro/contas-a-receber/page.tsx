@@ -11,7 +11,7 @@ export default async function ContasAReceberPage({ params }: { params: Promise<{
 
   const { equipeId } = await params
 
-  const [lancamentos, planoContas, bancos] = await Promise.all([
+  const [lancamentos, planoContas, bancos, equipe] = await Promise.all([
     prisma.lancamentoFinanceiro.findMany({
       where: { equipe_id: equipeId, tipo: 'RECEITA' },
       include: { plano_contas: true, banco: true, anexos: true, parciais: { orderBy: { dt_pagamento: 'asc' } } },
@@ -25,6 +25,7 @@ export default async function ContasAReceberPage({ params }: { params: Promise<{
       where: { equipe_id: equipeId, ativo: true },
       orderBy: { nome: 'asc' },
     }),
+    prisma.equipe.findUnique({ where: { id: equipeId }, select: { nome: true } }),
   ])
 
   const lancamentosSerializados = lancamentos.map(l => ({
@@ -46,6 +47,7 @@ export default async function ContasAReceberPage({ params }: { params: Promise<{
       </header>
       <LancamentosView
         equipeId={equipeId}
+        nomeCliente={equipe?.nome ?? ''}
         lancamentos={lancamentosSerializados as never}
         planoContas={planoContas}
         bancos={bancosSerializados}

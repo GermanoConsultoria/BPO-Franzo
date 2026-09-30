@@ -5,11 +5,15 @@ import { toast } from 'sonner'
 import { X, FileDown } from 'lucide-react'
 import { getExtratoBanco } from '@/app/actions'
 import ModalPreviewPdf from '@/components/ModalPreviewPdf'
+import PopupExportar from '@/components/financeiro/PopupExportar'
 import { gerarPdfExtratoBanco } from '@/lib/pdf-extrato-banco'
+import { gerarXlsxExtratoBanco } from '@/lib/xlsx-extrato-banco'
+import { baixarArquivo } from '@/lib/baixar-arquivo'
 import type { Banco, MovimentoExtrato } from '@/types'
 
 interface Props {
   equipeId: string
+  nomeCliente: string
   banco: Banco
   onClose: () => void
 }
@@ -22,12 +26,14 @@ function formatarData(data: Date | string) {
   return new Date(data).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
 }
 
-export default function ModalExtratoBanco({ equipeId, banco, onClose }: Props) {
+export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, onClose }: Props) {
   const [movimentos, setMovimentos] = useState<MovimentoExtrato[]>([])
   const [carregando, setCarregando] = useState(true)
   const [dataInicio, setDataInicio] = useState('')
   const [dataFim, setDataFim] = useState('')
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
+  const [mostrarEscolhaExport, setMostrarEscolhaExport] = useState(false)
+  const [gerandoXlsx, setGerandoXlsx] = useState(false)
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -55,13 +61,31 @@ export default function ModalExtratoBanco({ equipeId, banco, onClose }: Props) {
     ? `${formatarData(dataInicio)} até ${formatarData(dataFim)}`
     : 'Todos os períodos'
 
-  function handleExportarPdf() {
+  function abrirEscolhaExportar() {
     if (movimentos.length === 0) {
       toast.error('Não há movimentações para exportar com os filtros atuais.')
       return
     }
-    const blob = gerarPdfExtratoBanco({ nomeBanco: banco.nome, movimentos, labelPeriodo, saldoAtual: banco.saldo_atual })
+    setMostrarEscolhaExport(true)
+  }
+
+  function exportarPdf() {
+    const blob = gerarPdfExtratoBanco({ nomeCliente, nomeBanco: banco.nome, movimentos, labelPeriodo, saldoAtual: banco.saldo_atual })
     setPdfBlob(blob)
+    setMostrarEscolhaExport(false)
+  }
+
+  async function exportarXlsx() {
+    setGerandoXlsx(true)
+    try {
+      const blob = await gerarXlsxExtratoBanco({ nomeCliente, nomeBanco: banco.nome, movimentos, labelPeriodo, saldoAtual: banco.saldo_atual })
+      baixarArquivo(blob, `Extrato - ${banco.nome}.xlsx`)
+      setMostrarEscolhaExport(false)
+    } catch {
+      toast.error('Erro ao gerar XLSX.')
+    } finally {
+      setGerandoXlsx(false)
+    }
   }
 
   return (
@@ -102,10 +126,10 @@ export default function ModalExtratoBanco({ equipeId, banco, onClose }: Props) {
               )}
             </div>
             <button
-              onClick={handleExportarPdf}
+              onClick={abrirEscolhaExportar}
               className="flex items-center gap-2 bg-surface border border-border text-foreground text-sm font-medium px-4 py-2 rounded-lg hover:bg-surface-highlight transition-colors flex-shrink-0"
             >
-              <FileDown size={16} /> Exportar PDF
+              <FileDown size={16} /> Exportar
             </button>
           </div>
 
@@ -147,6 +171,17 @@ export default function ModalExtratoBanco({ equipeId, banco, onClose }: Props) {
           )}
         </div>
       </div>
+
+      {mostrarEscolhaExport && (
+        <PopupExportar
+          titulo="Exportar"
+          descricao={`Extrato — ${banco.nome} — como deseja exportar?`}
+          gerandoXlsx={gerandoXlsx}
+          onEscolherPdf={exportarPdf}
+          onEscolherXlsx={exportarXlsx}
+          onCancelar={() => setMostrarEscolhaExport(false)}
+        />
+      )}
 
       {pdfBlob && (
         <ModalPreviewPdf

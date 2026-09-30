@@ -10,6 +10,7 @@ import {
 } from 'recharts'
 import ModalPreviewPdf from '@/components/ModalPreviewPdf'
 import { gerarPdfContaResumo, gerarPdfContaDetalhado } from '@/lib/pdf-balancete-conta'
+import { desenharCabecalhoPdf, INICIO_CONTEUDO_PDF } from '@/lib/pdf-cabecalho'
 import type { Balancete, ContratoEncerrando } from '@/types'
 
 const COR_EXPORT = {
@@ -184,24 +185,13 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
       const pageHeight = doc.internal.pageSize.getHeight()
       const margemX = 10
       const margemTopoOutras = 10
-      const topoPrimeiraPagina = 34
+      const topoPrimeiraPagina = INICIO_CONTEUDO_PDF
       const imgWidth = pageWidth - margemX * 2
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       const imgData = canvas.toDataURL('image/png')
 
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(16)
-      doc.setTextColor(20)
-      doc.text('Balancete', 14, 16)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(12)
-      doc.setTextColor(70)
-      doc.text(nomeCliente, 14, 23)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(10)
-      doc.setTextColor(110)
       const labelPeriodoEfeito = `${new Date(dataInicio + 'T12:00:00').toLocaleDateString('pt-BR')} até ${new Date(dataFim + 'T12:00:00').toLocaleDateString('pt-BR')}`
-      doc.text(`Período: ${labelPeriodoEfeito}`, 14, 29)
+      desenharCabecalhoPdf(doc, 'Balancete', nomeCliente, labelPeriodoEfeito)
 
       doc.addImage(imgData, 'PNG', margemX, topoPrimeiraPagina, imgWidth, imgHeight)
       let restante = imgHeight - (pageHeight - topoPrimeiraPagina)
