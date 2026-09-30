@@ -139,7 +139,16 @@ function GraficoPorConta({
   cor: string
   onSelecionarConta: (item: { plano_contas_id: string; nome: string; total: number }) => void
 }) {
-  const dados = [...itens].sort((a, b) => b.total - a.total)
+  const contagem = new Map<string, number>()
+  const dados = [...itens]
+    .sort((a, b) => b.total - a.total)
+    .map(item => {
+      let nomeExibicao = item.nome
+      const repeticoes = (contagem.get(nomeExibicao) ?? 0) + 1
+      contagem.set(nomeExibicao, repeticoes)
+      if (repeticoes > 1) nomeExibicao = `${nomeExibicao} (${repeticoes})`
+      return { ...item, nomeExibicao }
+    })
   if (dados.length === 0) {
     return <p className="text-center text-gray-500 text-sm py-12">Nenhum lançamento no período.</p>
   }
@@ -147,7 +156,7 @@ function GraficoPorConta({
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={dados} margin={{ top: 5, right: 10, left: 10, bottom: 50 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-        <XAxis dataKey="nome" tick={{ fontSize: 11, fill: '#9ca3af' }} angle={-25} textAnchor="end" interval={0} height={70} />
+        <XAxis dataKey="nomeExibicao" tick={{ fontSize: 11, fill: '#9ca3af' }} angle={-25} textAnchor="end" interval={0} height={70} />
         <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={v => `R$${(v / 1000).toFixed(1)}k`} domain={[0, 'auto']} />
         <Tooltip content={<TooltipCustom />} />
         <Bar
@@ -175,11 +184,16 @@ function GraficoLancamentosConta({
   cor: string
   onVoltar: () => void
 }) {
-  const dados = lancamentos.map((l, i) => ({
-    nome: l.descricao || `Lançamento ${i + 1}`,
-    valor: l.valor,
-    status: l.status,
-  }))
+  const contagem = new Map<string, number>()
+  const dados = lancamentos.map((l, i) => {
+    const base = l.descricao || `Lançamento ${i + 1}`
+    const dataCurta = new Date(l.dt_vencimento).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit' })
+    let nome = `${base} · ${dataCurta}`
+    const repeticoes = (contagem.get(nome) ?? 0) + 1
+    contagem.set(nome, repeticoes)
+    if (repeticoes > 1) nome = `${nome} (${repeticoes})`
+    return { nome, valor: l.valor, status: l.status }
+  })
 
   return (
     <div>
