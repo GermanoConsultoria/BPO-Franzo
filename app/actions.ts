@@ -910,9 +910,19 @@ export async function editarLancamento(formData: FormData): Promise<ActionResult
       warning = 'Valor e banco não podem ser alterados após pagamentos registrados — as demais alterações foram salvas.'
     }
 
+    // Lançamento já pago: o extrato do banco usa dt_pagamento (não
+    // dt_vencimento) para ordenar e calcular o saldo corrido. Sem isso, editar
+    // a data de um lançamento PAGO só mexia no vencimento e deixava a data
+    // real do movimento (dt_pagamento) desalinhada, "sumindo" do extrato no
+    // lugar certo.
+    const dtPagamentoFinal = lancamento.status === 'PAGO' && lancamento.dt_pagamento ? dt_vencimento : undefined
+
     await prisma.lancamentoFinanceiro.update({
       where: { id },
-      data: { descricao, beneficiario, valor: valorFinal, dt_vencimento, numero_documento, plano_contas_id, banco_id: bancoIdFinal }
+      data: {
+        descricao, beneficiario, valor: valorFinal, dt_vencimento, numero_documento, plano_contas_id, banco_id: bancoIdFinal,
+        ...(dtPagamentoFinal ? { dt_pagamento: dtPagamentoFinal } : {}),
+      }
     })
 
     const aplicarATodos = formData.get('aplicar_a_todos') === 'true'
@@ -926,6 +936,7 @@ export async function editarLancamento(formData: FormData): Promise<ActionResult
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
     return { success: true, data: undefined, warning }
   } catch {
     return { success: false, error: 'Erro ao editar lançamento.' }
