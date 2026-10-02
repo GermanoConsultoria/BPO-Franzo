@@ -14,13 +14,14 @@ interface Props {
   nomeCliente: string
   bancos: BancoComContagem[]
   planoContas: PlanoContas[]
+  saldoInvestidoPorBanco: Record<string, number>
 }
 
 function formatarMoeda(valor: number) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export default function BancosView({ equipeId, nomeCliente, bancos: bancosIniciais, planoContas }: Props) {
+export default function BancosView({ equipeId, nomeCliente, bancos: bancosIniciais, planoContas, saldoInvestidoPorBanco }: Props) {
   const [bancos, setBancos] = useState(bancosIniciais)
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<BancoComContagem | null>(null)
@@ -214,6 +215,7 @@ export default function BancosView({ equipeId, nomeCliente, bancos: bancosInicia
           nomeCliente={nomeCliente}
           banco={extratoBanco}
           planoContas={planoContas}
+          saldoInvestido={saldoInvestidoPorBanco[extratoBanco.id] ?? 0}
           onClose={() => setExtratoBanco(null)}
           onImportado={(saldoAtual, quantidade) => {
             setBancos(prev => prev.map(b => b.id === extratoBanco.id

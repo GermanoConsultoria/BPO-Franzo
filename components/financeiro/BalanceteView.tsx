@@ -381,6 +381,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
         <CardResumo label={b.saldo >= 0 ? 'Saldo realizado' : 'Déficit realizado'} valor={Math.abs(b.saldo)} cor={b.saldo >= 0 ? 'text-indigo-400' : 'text-red-400'} />
         <CardResumo label="A Receber no período" valor={b.a_receber} cor="text-yellow-400" />
         <CardResumo label="A Pagar no período" valor={b.a_pagar} cor="text-orange-400" />
+        <CardResumo label="Saldo Investido" valor={b.saldo_investido} cor="text-yellow-400" />
       </div>
 
       {/* Gráfico */}
@@ -391,7 +392,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
               {modo === 'mes' && filtroGrafico !== 'todas' && contaAbertaGrafico ? `Lançamentos — ${contaAbertaGrafico.nome}`
                 : modo === 'mes' && filtroGrafico === 'receitas' ? 'Receitas por Conta'
                 : modo === 'mes' && filtroGrafico === 'despesas' ? 'Despesas por Conta'
-                : tipoGrafico === 'pizza' ? 'Distribuição do Período' : 'Receitas × Despesas × Lucro por Mês'}
+                : tipoGrafico === 'pizza' ? 'Distribuição do Período' : 'Receitas × Despesas × Lucro × Investimentos por Mês'}
             </h2>
             <div className="flex items-center gap-3">
               {modo === 'mes' && (
@@ -459,6 +460,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
                 <Bar dataKey="receitas" name="Receitas" fill="#10b981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="despesas" name="Despesas" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="lucro" name="Lucro" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="investimentos" name="Investimentos" fill="#facc15" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -474,6 +476,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
                 <Line type="monotone" dataKey="receitas" name="Receitas" stroke="#10b981" strokeWidth={2} dot={{ r: 4, fill: '#10b981' }} />
                 <Line type="monotone" dataKey="despesas" name="Despesas" stroke="#ef4444" strokeWidth={2} dot={{ r: 4, fill: '#ef4444' }} />
                 <Line type="monotone" dataKey="lucro" name="Lucro" stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} />
+                <Line type="monotone" dataKey="investimentos" name="Investimentos" stroke="#facc15" strokeWidth={2} dot={{ r: 4, fill: '#facc15' }} />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -557,9 +560,10 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
             <CardExport label={b.saldo >= 0 ? 'Saldo realizado' : 'Déficit realizado'} valor={Math.abs(b.saldo)} cor={b.saldo >= 0 ? COR_EXPORT.indigo : COR_EXPORT.red} />
             <CardExport label="A Receber no período" valor={b.a_receber} cor={COR_EXPORT.yellow} />
             <CardExport label="A Pagar no período" valor={b.a_pagar} cor={COR_EXPORT.orange} />
+            <CardExport label="Saldo Investido" valor={b.saldo_investido} cor={COR_EXPORT.yellow} />
           </div>
 
-          <ChartBlockExport titulo="Receitas × Despesas × Lucro por Mês — Barra">
+          <ChartBlockExport titulo="Receitas × Despesas × Lucro × Investimentos por Mês — Barra">
             <BarChart width={648} height={190} data={b.dados_mensais} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
               <XAxis dataKey="mes" tick={{ fontSize: 10, fill: COR_EXPORT.textoMuted }} />
@@ -568,10 +572,11 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
               <Bar dataKey="receitas" name="Receitas" fill="#10b981" radius={[3, 3, 0, 0]} isAnimationActive={false} />
               <Bar dataKey="despesas" name="Despesas" fill="#ef4444" radius={[3, 3, 0, 0]} isAnimationActive={false} />
               <Bar dataKey="lucro" name="Lucro" fill="#6366f1" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="investimentos" name="Investimentos" fill="#facc15" radius={[3, 3, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ChartBlockExport>
 
-          <ChartBlockExport titulo="Receitas × Despesas × Lucro por Mês — Linha">
+          <ChartBlockExport titulo="Receitas × Despesas × Lucro × Investimentos por Mês — Linha">
             <LineChart width={648} height={190} data={b.dados_mensais} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
               <XAxis dataKey="mes" tick={{ fontSize: 10, fill: COR_EXPORT.textoMuted }} />
@@ -580,6 +585,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
               <Line type="monotone" dataKey="receitas" name="Receitas" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} isAnimationActive={false} />
               <Line type="monotone" dataKey="despesas" name="Despesas" stroke="#ef4444" strokeWidth={2} dot={{ r: 3, fill: '#ef4444' }} isAnimationActive={false} />
               <Line type="monotone" dataKey="lucro" name="Lucro" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} isAnimationActive={false} />
+              <Line type="monotone" dataKey="investimentos" name="Investimentos" stroke="#facc15" strokeWidth={2} dot={{ r: 3, fill: '#facc15' }} isAnimationActive={false} />
             </LineChart>
           </ChartBlockExport>
 

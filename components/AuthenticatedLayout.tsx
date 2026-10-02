@@ -15,6 +15,7 @@ const ITENS_FINANCEIRO = [
   { slug: 'financeiro/contas-a-receber', icon: '📥', label: 'Contas a Receber' },
   { slug: 'financeiro/plano-contas', icon: '🗂️', label: 'Plano de Contas' },
   { slug: 'financeiro/bancos', icon: '🏦', label: 'Bancos' },
+  { slug: 'financeiro/investimentos', icon: '💰', label: 'Investimentos' },
 ] as const
 
 interface AuthenticatedLayoutProps {

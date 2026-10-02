@@ -36,6 +36,7 @@ model Equipe {
   planoContas  PlanoContas[]
   bancos       Banco[]
   lancamentos  LancamentoFinanceiro[]
+  investimentos Investimento[]
 
   @@index([workspace_id])
   @@map("equipe")
@@ -115,10 +116,38 @@ model PlanoContas {
   @@map("plano_contas")
 }
 
+// Investimentos — ledger isolado por equipe, fora do plano de contas e do
+// balancete de receitas/despesas. Cada linha é um movimento (aporte ou
+// resgate); o saldo investido é a soma de todos os movimentos da equipe.
+// Pode ser vinculado a um banco só para referência/composição do saldo
+// exibido (banco.saldo_atual NÃO é alterado por este vínculo).
+model Investimento {
+  id               String           @id @default(uuid())
+  equipe_id        String
+  banco_id         String?
+  tipo             TipoInvestimento
+  descricao        String
+  valor            Decimal          @db.Decimal(15, 2)
+  dt_movimento     DateTime
+  numero_documento String?
+  dt_insert        DateTime         @default(now())
+  dt_update        DateTime         @default(now()) @updatedAt
+
+  equipe           Equipe           @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
+  banco            Banco?           @relation(fields: [banco_id], references: [id], onDelete: SetNull)
+
+  @@index([equipe_id])
+  @@index([equipe_id, dt_movimento])
+  @@index([banco_id])
+  @@map("investimento")
+}
+
 // Contas bancárias do cliente — tela própria ("Bancos"), separada do Plano
 // de Contas. saldo_atual começa igual ao saldo_inicial no cadastro e é
 // movimentado em tempo real conforme pagamentos/recebimentos vinculados a
 // este banco são registrados (ver pagarLancamento / registrarPagamentoParcial).
+// Investimentos vinculados NÃO alteram saldo_atual — são só uma composição
+// exibida na tela (saldo real = saldo_atual - saldo investido do banco).
 model Banco {
   id            String                 @id @default(uuid())
   equipe_id     String
@@ -131,6 +160,7 @@ model Banco {
 
   equipe        Equipe                 @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
   lancamentos   LancamentoFinanceiro[]
+  investimentos Investimento[]
 
   @@index([equipe_id])
   @@map("banco")
@@ -215,6 +245,11 @@ enum Recorrencia {
 enum TipoLancamento {
   DESPESA
   RECEITA
+}
+
+enum TipoInvestimento {
+  APORTE
+  RESGATE
 }
 
 enum StatusLancamento {

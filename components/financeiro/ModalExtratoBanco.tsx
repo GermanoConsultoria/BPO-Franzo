@@ -17,6 +17,7 @@ interface Props {
   nomeCliente: string
   banco: Banco
   planoContas: PlanoContas[]
+  saldoInvestido: number
   onClose: () => void
   onImportado?: (saldoAtual: number, quantidade: number) => void
 }
@@ -29,7 +30,7 @@ function formatarData(data: Date | string) {
   return new Date(data).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
 }
 
-export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, planoContas, onClose, onImportado }: Props) {
+export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, planoContas, saldoInvestido, onClose, onImportado }: Props) {
   const [movimentos, setMovimentos] = useState<MovimentoExtrato[]>([])
   const [carregando, setCarregando] = useState(true)
   const [dataInicio, setDataInicio] = useState('')
@@ -109,6 +110,13 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, planoC
             <p className="text-xs text-gray-500 mt-0.5">
               Saldo atual: <span className={`font-semibold ${saldoAtualLocal < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{formatarMoeda(saldoAtualLocal)}</span>
             </p>
+            {saldoInvestido > 0 && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                Saldo real: <span className="font-semibold text-emerald-400">{formatarMoeda(saldoAtualLocal - saldoInvestido)}</span>
+                {' · '}
+                Saldo investido: <span className="font-semibold text-yellow-400">{formatarMoeda(saldoInvestido)}</span>
+              </p>
+            )}
           </div>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-foreground transition-colors">
             <X size={20} />

@@ -113,6 +113,23 @@ export type PlanoContas = {
   dt_update: Date | string
 }
 
+export type TipoInvestimento = 'APORTE' | 'RESGATE'
+
+export type Investimento = {
+  id: string
+  equipe_id: string
+  banco_id: string | null
+  tipo: TipoInvestimento
+  descricao: string
+  valor: number
+  dt_movimento: Date | string
+  numero_documento: string | null
+  dt_insert: Date | string
+  dt_update: Date | string
+}
+
+export type InvestimentoComBanco = Investimento & { banco: Banco | null }
+
 /** Conta bancária do cliente. Tela própria — saldo_atual começa igual ao
  * saldo_inicial e é movimentado conforme pagamentos/recebimentos vinculados
  * a este banco são registrados. */
@@ -200,6 +217,7 @@ export type DadosMensaisBalancete = {
   receitas: number
   despesas: number
   lucro: number
+  investimentos: number
 }
 
 export type ContratoEncerrando = {
@@ -224,4 +242,5 @@ export type Balancete = {
   dados_mensais: DadosMensaisBalancete[]
   contratos_encerrando: ContratoEncerrando[]
   lancamentos_por_conta: Record<string, { descricao: string; valor: number; status: string; dt_vencimento: Date }[]>
+  saldo_investido: number
 }

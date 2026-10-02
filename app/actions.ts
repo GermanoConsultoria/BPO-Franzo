@@ -779,6 +779,195 @@ export async function importarExtratoBanco(
   }
 }
 
+// --- INVESTIMENTOS ---
+// Ledger isolado por equipe (fora do plano de contas e do balancete de
+// receitas/despesas). Cada linha é um movimento: APORTE (entrada) ou RESGATE
+// (saída). Regras:
+// 1) Não é possível resgatar mais do que o saldo investido acumulado da
+//    equipe (soma de todos os aportes menos todos os resgates).
+// 2) Quando o movimento está vinculado a um banco: um APORTE não pode
+//    exceder o saldo real daquele banco (saldo_atual - já investido nele —
+//    vincular não altera saldo_atual, então isso evita "investir" dinheiro
+//    que o banco não tem); um RESGATE não pode exceder o que já está
+//    investido especificamente através daquele banco.
+
+async function getSaldoInvestimentos(equipeId: string, ignorarId?: string): Promise<number> {
+  const movimentos = await prisma.investimento.findMany({
+    where: { equipe_id: equipeId, ...(ignorarId ? { id: { not: ignorarId } } : {}) },
+    select: { tipo: true, valor: true },
+  })
+  return movimentos.reduce((s, m) => s + (m.tipo === 'APORTE' ? Number(m.valor) : -Number(m.valor)), 0)
+}
+
+async function getSaldoInvestidoBanco(equipeId: string, bancoId: string, ignorarId?: string): Promise<number> {
+  const movimentos = await prisma.investimento.findMany({
+    where: { equipe_id: equipeId, banco_id: bancoId, ...(ignorarId ? { id: { not: ignorarId } } : {}) },
+    select: { tipo: true, valor: true },
+  })
+  return movimentos.reduce((s, m) => s + (m.tipo === 'APORTE' ? Number(m.valor) : -Number(m.valor)), 0)
+}
+
+/** Valida as regras de banco vinculado (2) acima. Retorna uma mensagem de
+ * erro, ou null se estiver tudo certo. */
+async function validarInvestimentoBanco(
+  equipeId: string,
+  bancoId: string,
+  tipo: 'APORTE' | 'RESGATE',
+  valor: number,
+  ignorarId?: string,
+): Promise<string | null> {
+  const banco = await prisma.banco.findFirst({ where: { id: bancoId, equipe_id: equipeId } })
+  if (!banco) return 'Banco não encontrado.'
+
+  const saldoInvestidoBanco = await getSaldoInvestidoBanco(equipeId, bancoId, ignorarId)
+
+  if (tipo === 'APORTE') {
+    const saldoRealBanco = Number(banco.saldo_atual) - saldoInvestidoBanco
+    if (valor > saldoRealBanco) {
+      return `Saldo insuficiente no banco "${banco.nome}". Disponível: ${saldoRealBanco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+    }
+  } else {
+    if (valor > saldoInvestidoBanco) {
+      return `Saldo investido no banco "${banco.nome}" insuficiente. Investido: ${saldoInvestidoBanco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+    }
+  }
+  return null
+}
+
+export async function criarInvestimento(formData: FormData): Promise<ActionResult<import('@/types').Investimento>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+
+    const equipeId = formData.get('equipeId') as string
+    if (!equipeId || !(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) {
+      return { success: false, error: 'Sem acesso a este cliente.' }
+    }
+
+    const tipo = formData.get('tipo') as 'APORTE' | 'RESGATE'
+    const descricao = (formData.get('descricao') as string)?.trim()
+    const valorStr = formData.get('valor') as string
+    const valor = parseFloat(valorStr.replace(',', '.'))
+    const dt_movimento = new Date(formData.get('dt_movimento') as string)
+    const numero_documento = (formData.get('numero_documento') as string)?.trim() || null
+    const banco_id = (formData.get('banco_id') as string)?.trim() || null
+
+    if (!['APORTE', 'RESGATE'].includes(tipo)) return { success: false, error: 'Tipo inválido.' }
+    if (!descricao) return { success: false, error: 'Descrição é obrigatória.' }
+    if (isNaN(valor) || valor <= 0) return { success: false, error: 'Valor inválido.' }
+
+    if (banco_id) {
+      // Vinculado a um banco: o saldo que importa é o respectivo daquele
+      // banco, não o total misturado com outros bancos/sem vínculo.
+      const erroBanco = await validarInvestimentoBanco(equipeId, banco_id, tipo, valor)
+      if (erroBanco) return { success: false, error: erroBanco }
+    } else if (tipo === 'RESGATE') {
+      const saldoAtual = await getSaldoInvestimentos(equipeId)
+      if (valor > saldoAtual) {
+        return { success: false, error: `Saldo insuficiente em investimentos. Saldo atual: ${saldoAtual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` }
+      }
+    }
+
+    const investimento = await prisma.investimento.create({
+      data: { equipe_id: equipeId, tipo, descricao, valor, dt_movimento, numero_documento, banco_id }
+    })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/investimentos`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
+    return { success: true, data: { ...investimento, valor: Number(investimento.valor) } }
+  } catch {
+    return { success: false, error: 'Erro ao criar movimento de investimento.' }
+  }
+}
+
+export async function editarInvestimento(formData: FormData): Promise<ActionResult<import('@/types').Investimento>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+
+    const equipeId = formData.get('equipeId') as string
+    if (!equipeId || !(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) {
+      return { success: false, error: 'Sem acesso a este cliente.' }
+    }
+
+    const id = formData.get('id') as string
+    const tipo = formData.get('tipo') as 'APORTE' | 'RESGATE'
+    const descricao = (formData.get('descricao') as string)?.trim()
+    const valorStr = formData.get('valor') as string
+    const valor = parseFloat(valorStr.replace(',', '.'))
+    const dt_movimento = new Date(formData.get('dt_movimento') as string)
+    const numero_documento = (formData.get('numero_documento') as string)?.trim() || null
+    const banco_id = (formData.get('banco_id') as string)?.trim() || null
+
+    if (!['APORTE', 'RESGATE'].includes(tipo)) return { success: false, error: 'Tipo inválido.' }
+    if (!descricao) return { success: false, error: 'Descrição é obrigatória.' }
+    if (isNaN(valor) || valor <= 0) return { success: false, error: 'Valor inválido.' }
+
+    const existente = await prisma.investimento.findFirst({ where: { id, equipe_id: equipeId } })
+    if (!existente) return { success: false, error: 'Movimento não encontrado.' }
+
+    if (banco_id) {
+      const erroBanco = await validarInvestimentoBanco(equipeId, banco_id, tipo, valor, id)
+      if (erroBanco) return { success: false, error: erroBanco }
+    }
+
+    if (tipo === 'RESGATE') {
+      const saldoSemEste = await getSaldoInvestimentos(equipeId, id)
+      if (valor > saldoSemEste) {
+        return { success: false, error: `Saldo insuficiente em investimentos. Saldo disponível: ${saldoSemEste.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` }
+      }
+    }
+
+    const atualizado = await prisma.investimento.update({
+      where: { id },
+      data: { tipo, descricao, valor, dt_movimento, numero_documento, banco_id }
+    })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/investimentos`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
+    return { success: true, data: { ...atualizado, valor: Number(atualizado.valor) } }
+  } catch {
+    return { success: false, error: 'Erro ao editar movimento de investimento.' }
+  }
+}
+
+export async function excluirInvestimento(id: string, equipeId: string): Promise<ActionResult<undefined>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+    if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) return { success: false, error: 'Sem acesso a este cliente.' }
+
+    const existente = await prisma.investimento.findFirst({ where: { id, equipe_id: equipeId } })
+    if (!existente) return { success: false, error: 'Movimento não encontrado.' }
+
+    // Excluir um aporte não pode deixar o saldo investido (geral, e do banco
+    // vinculado, se houver) negativo.
+    if (existente.tipo === 'APORTE') {
+      const saldoSemEste = await getSaldoInvestimentos(equipeId, id)
+      if (saldoSemEste < 0) {
+        return { success: false, error: 'Não é possível excluir: resgates já registrados dependem deste aporte.' }
+      }
+      if (existente.banco_id) {
+        const saldoBancoSemEste = await getSaldoInvestidoBanco(equipeId, existente.banco_id, id)
+        if (saldoBancoSemEste < 0) {
+          return { success: false, error: 'Não é possível excluir: resgates desse banco já registrados dependem deste aporte.' }
+        }
+      }
+    }
+
+    await prisma.investimento.delete({ where: { id } })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/investimentos`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
+    return { success: true, data: undefined }
+  } catch {
+    return { success: false, error: 'Erro ao excluir movimento de investimento.' }
+  }
+}
+
 // --- LANÇAMENTOS FINANCEIROS ---
 
 export async function criarLancamento(formData: FormData): Promise<ActionResult<undefined>> {
@@ -1570,13 +1759,33 @@ export async function getBalancete(equipeId: string, dataInicio: string, dataFim
     mapa.set(l.plano_contas_id, { nome: l.plano_contas.nome, total: atual.total + toNumber(l.valor) })
   }
 
-  const mesesMap = new Map<string, { receitas: number; despesas: number }>()
+  // Investimentos são um ledger isolado — não entram em receitas/despesas/
+  // lucro/saldo/a_receber/a_pagar. Só aparecem como coluna própria no
+  // gráfico mensal e no card de saldo investido.
+  const [todosInvestimentos, investimentosPeriodo] = await Promise.all([
+    prisma.investimento.findMany({ where: { equipe_id: equipeId }, select: { tipo: true, valor: true } }),
+    prisma.investimento.findMany({
+      where: { equipe_id: equipeId, dt_movimento: { gte: inicio, lte: fim } },
+      select: { tipo: true, valor: true, dt_movimento: true },
+    }),
+  ])
+
+  const saldo_investido = todosInvestimentos.reduce((s, m) => s + (m.tipo === 'APORTE' ? toNumber(m.valor) : -toNumber(m.valor)), 0)
+
+  const mesesMap = new Map<string, { receitas: number; despesas: number; investimentos: number }>()
   for (const l of noPeriodo) {
     const dt = new Date(l.dt_vencimento)
     const chave = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`
-    const atual = mesesMap.get(chave) ?? { receitas: 0, despesas: 0 }
+    const atual = mesesMap.get(chave) ?? { receitas: 0, despesas: 0, investimentos: 0 }
     if (l.tipo === 'RECEITA') atual.receitas += toNumber(l.valor)
     else atual.despesas += toNumber(l.valor)
+    mesesMap.set(chave, atual)
+  }
+  for (const m of investimentosPeriodo) {
+    const dt = new Date(m.dt_movimento)
+    const chave = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`
+    const atual = mesesMap.get(chave) ?? { receitas: 0, despesas: 0, investimentos: 0 }
+    atual.investimentos += m.tipo === 'APORTE' ? toNumber(m.valor) : -toNumber(m.valor)
     mesesMap.set(chave, atual)
   }
 
@@ -1595,6 +1804,7 @@ export async function getBalancete(equipeId: string, dataInicio: string, dataFim
         receitas: v.receitas,
         despesas: v.despesas,
         lucro: Math.max(0, v.receitas - v.despesas),
+        investimentos: v.investimentos,
       }
     })
 
@@ -1680,5 +1890,6 @@ export async function getBalancete(equipeId: string, dataInicio: string, dataFim
     lancamentos_por_conta: Object.fromEntries(lancamentosPorConta),
     dados_mensais,
     contratos_encerrando,
+    saldo_investido,
   }
 }
