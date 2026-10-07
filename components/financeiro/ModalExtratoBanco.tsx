@@ -112,7 +112,7 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, planoC
             </p>
             {saldoInvestido > 0 && (
               <p className="text-xs text-gray-500 mt-0.5">
-                Saldo real: <span className="font-semibold text-emerald-400">{formatarMoeda(saldoAtualLocal - saldoInvestido)}</span>
+                Saldo real: <span className={`font-semibold ${(saldoAtualLocal - saldoInvestido) < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{formatarMoeda(saldoAtualLocal - saldoInvestido)}</span>
                 {' · '}
                 Saldo investido: <span className="font-semibold text-yellow-400">{formatarMoeda(saldoInvestido)}</span>
               </p>
