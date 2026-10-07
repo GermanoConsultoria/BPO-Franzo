@@ -130,6 +130,8 @@ model Investimento {
   valor            Decimal          @db.Decimal(15, 2)
   dt_movimento     DateTime
   numero_documento String?
+  saldo_anterior   Decimal?         @db.Decimal(15, 2)
+  saldo_atual      Decimal?         @db.Decimal(15, 2)
   dt_insert        DateTime         @default(now())
   dt_update        DateTime         @default(now()) @updatedAt
 

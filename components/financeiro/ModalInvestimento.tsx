@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, FileUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { criarInvestimento, editarInvestimento } from '@/app/actions'
+import ModalImportarContaPaga from '@/components/financeiro/ModalImportarContaPaga'
 import type { Investimento, TipoInvestimento, Banco } from '@/types'
 
 interface Props {
@@ -24,6 +25,7 @@ function parseCentavos(valor: number) {
 
 export default function ModalInvestimento({ equipeId, bancos, investimento, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false)
+  const [mostrarImportar, setMostrarImportar] = useState(false)
   const [tipo, setTipo] = useState<TipoInvestimento>(investimento?.tipo ?? 'APORTE')
   const [valorCentavos, setValorCentavos] = useState(
     investimento ? parseCentavos(Number(investimento.valor)) : 0
@@ -96,6 +98,15 @@ export default function ModalInvestimento({ equipeId, bancos, investimento, onCl
                 Resgate (saída)
               </button>
             </div>
+            {!investimento && tipo === 'APORTE' && (
+              <button
+                type="button"
+                onClick={() => setMostrarImportar(true)}
+                className="mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-border text-xs font-medium text-gray-400 hover:text-yellow-400 hover:border-yellow-500/40 transition-colors"
+              >
+                <FileUp size={13} /> Importar de Contas a Pagar
+              </button>
+            )}
           </div>
 
           <div>
@@ -173,6 +184,17 @@ export default function ModalInvestimento({ equipeId, bancos, investimento, onCl
           </div>
         </form>
       </div>
+
+      {mostrarImportar && (
+        <ModalImportarContaPaga
+          equipeId={equipeId}
+          onClose={() => setMostrarImportar(false)}
+          onImportado={investimentoImportado => {
+            onSuccess(investimentoImportado)
+            onClose()
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -19,29 +19,31 @@ export async function gerarXlsxExtratoBanco({ nomeCliente, nomeBanco, movimentos
   const ws = workbook.addWorksheet('Extrato')
 
   adicionarCabecalhoXlsx(ws, `Extrato Bancário — ${nomeBanco}`, nomeCliente, labelPeriodo)
-  adicionarCabecalhoTabelaXlsx(ws, ['Data', 'Descrição', 'Valor', 'Saldo Anterior', 'Saldo Atual'], 'FF4F46E5')
+  adicionarCabecalhoTabelaXlsx(ws, ['Data', 'Descrição', 'Origem', 'Valor', 'Saldo Anterior', 'Saldo Atual'], 'FF4F46E5')
 
   for (const m of movimentos) {
+    const saida = m.tipo === 'DESPESA' || m.tipo === 'RESGATE'
     const row = ws.addRow([
       m.dt_pagamento ? formatarData(m.dt_pagamento) : '—',
       m.descricao,
-      m.tipo === 'DESPESA' ? -m.valor : m.valor,
+      m.origem === 'INVESTIMENTO' ? 'Investimento' : 'Lançamento',
+      saida ? -m.valor : m.valor,
       m.saldo_anterior,
       m.saldo_atual,
     ])
-    row.getCell(3).numFmt = FORMATO_MOEDA_XLSX
-    row.getCell(3).font = { color: { argb: m.tipo === 'DESPESA' ? 'FFB91C1C' : 'FF047857' } }
     row.getCell(4).numFmt = FORMATO_MOEDA_XLSX
+    row.getCell(4).font = { color: { argb: saida ? 'FFB91C1C' : 'FF047857' } }
     row.getCell(5).numFmt = FORMATO_MOEDA_XLSX
+    row.getCell(6).numFmt = FORMATO_MOEDA_XLSX
   }
 
   ws.addRow([])
-  const saldoRow = ws.addRow(['Saldo atual:', '', saldoAtual])
+  const saldoRow = ws.addRow(['Saldo atual:', '', '', saldoAtual])
   saldoRow.getCell(1).font = { bold: true }
-  saldoRow.getCell(3).font = { bold: true }
-  saldoRow.getCell(3).numFmt = FORMATO_MOEDA_XLSX
+  saldoRow.getCell(4).font = { bold: true }
+  saldoRow.getCell(4).numFmt = FORMATO_MOEDA_XLSX
 
-  ws.columns = [{ width: 12 }, { width: 42 }, { width: 16 }, { width: 16 }, { width: 16 }]
+  ws.columns = [{ width: 12 }, { width: 42 }, { width: 14 }, { width: 16 }, { width: 16 }, { width: 16 }]
 
   const buffer = await workbook.xlsx.writeBuffer()
   return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })

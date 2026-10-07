@@ -26,28 +26,29 @@ export function gerarPdfExtratoBanco({ nomeCliente, nomeBanco, movimentos, label
   const linhas = movimentos.map(m => [
     m.dt_pagamento ? formatarData(m.dt_pagamento) : '—',
     m.descricao,
-    `${m.tipo === 'DESPESA' ? '-' : '+'} ${formatarMoeda(m.valor)}`,
+    m.origem === 'INVESTIMENTO' ? 'Investimento' : 'Lançamento',
+    `${(m.tipo === 'DESPESA' || m.tipo === 'RESGATE') ? '-' : '+'} ${formatarMoeda(m.valor)}`,
     m.saldo_anterior !== null ? formatarMoeda(m.saldo_anterior) : '—',
     m.saldo_atual !== null ? formatarMoeda(m.saldo_atual) : '—',
   ])
 
   autoTable(doc, {
     startY: INICIO_CONTEUDO_PDF,
-    head: [['Data', 'Descrição', 'Valor', 'Saldo Anterior', 'Saldo Atual']],
+    head: [['Data', 'Descrição', 'Origem', 'Valor', 'Saldo Anterior', 'Saldo Atual']],
     body: linhas,
     styles: { fontSize: 9, cellPadding: 2.5, textColor: 30 },
     headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [246, 247, 249] },
     columnStyles: {
-      2: { halign: 'right' },
       3: { halign: 'right' },
       4: { halign: 'right' },
+      5: { halign: 'right' },
     },
     margin: { left: 14, right: 14 },
     didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 2) {
+      if (data.section === 'body' && data.column.index === 3) {
         const movimento = movimentos[data.row.index]
-        if (movimento) data.cell.styles.textColor = movimento.tipo === 'DESPESA' ? [185, 28, 28] : [4, 120, 87]
+        if (movimento) data.cell.styles.textColor = (movimento.tipo === 'DESPESA' || movimento.tipo === 'RESGATE') ? [185, 28, 28] : [4, 120, 87]
       }
     },
   })

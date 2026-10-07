@@ -122,6 +122,7 @@ export default function LancamentosView({ equipeId, nomeCliente, lancamentos: in
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<LancamentoComRelacoes | null>(null)
   const [modalPagar, setModalPagar] = useState<string | null>(null)
+  const [pagando, setPagando] = useState(false)
   const [dtPagamento, setDtPagamento] = useState(new Date().toISOString().split('T')[0])
   const [modalExcluirRecorrente, setModalExcluirRecorrente] = useState<string | null>(null)
   const [modalExcluirGrupo, setModalExcluirGrupo] = useState<LancamentoComRelacoes | null>(null)
@@ -196,9 +197,11 @@ export default function LancamentosView({ equipeId, nomeCliente, lancamentos: in
     + lancamentos.filter(l => l.status === 'PENDENTE').reduce((s, l) => s + somaParciais(l), 0)
 
   async function handlePagar() {
-    if (!modalPagar) return
+    if (!modalPagar || pagando) return
+    setPagando(true)
     const isRecorrente = lancamentos.find(l => l.id === modalPagar)?.recorrencia !== 'NAO'
     const resultado = await pagarLancamento(modalPagar, dtPagamento, equipeId)
+    setPagando(false)
     if (!resultado.success) { toast.error(resultado.error); return }
     toast.success(isRecorrente ? 'Pago. Próximo lançamento criado.' : 'Lançamento marcado como pago.')
     if (isRecorrente) {
@@ -652,11 +655,11 @@ export default function LancamentosView({ equipeId, nomeCliente, lancamentos: in
                 />
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setModalPagar(null)} className="flex-1 py-2 rounded-lg border border-border text-sm hover:bg-surface-highlight transition-colors">
+                <button onClick={() => setModalPagar(null)} disabled={pagando} className="flex-1 py-2 rounded-lg border border-border text-sm hover:bg-surface-highlight transition-colors disabled:opacity-50">
                   Cancelar
                 </button>
-                <button onClick={handlePagar} className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
-                  Confirmar
+                <button onClick={handlePagar} disabled={pagando} className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                  {pagando ? 'Confirmando...' : 'Confirmar'}
                 </button>
               </div>
             </div>

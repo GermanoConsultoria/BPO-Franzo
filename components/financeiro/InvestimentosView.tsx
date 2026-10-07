@@ -149,6 +149,8 @@ export default function InvestimentosView({ equipeId, investimentos: iniciais, b
                   <th className="text-left px-3 py-2">Banco</th>
                   <th className="text-center px-3 py-2">Nº Doc.</th>
                   <th className="text-right px-3 py-2">Valor</th>
+                  <th className="text-right px-3 py-2">Saldo Ant.</th>
+                  <th className="text-right px-3 py-2">Saldo Atual</th>
                   <th className="px-3 py-2" />
                 </tr>
               </thead>
@@ -172,6 +174,8 @@ export default function InvestimentosView({ equipeId, investimentos: iniciais, b
                     <td className="px-3 py-2 text-right font-semibold text-yellow-400 whitespace-nowrap">
                       {m.tipo === 'RESGATE' ? '- ' : ''}{formatarMoeda(Number(m.valor))}
                     </td>
+                    <td className="px-3 py-2 text-right text-gray-400 whitespace-nowrap">{m.saldo_anterior !== null && m.saldo_anterior !== undefined ? formatarMoeda(Number(m.saldo_anterior)) : '—'}</td>
+                    <td className="px-3 py-2 text-right text-gray-300 font-medium whitespace-nowrap">{m.saldo_atual !== null && m.saldo_atual !== undefined ? formatarMoeda(Number(m.saldo_atual)) : '—'}</td>
                     <td className="px-2 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1 justify-end">
                         <button onClick={() => abrirEditar(m)} className="p-1 text-gray-400 hover:text-yellow-400 transition-colors" title="Editar">

@@ -631,18 +631,43 @@ export async function getExtratoBanco(
   const banco = await prisma.banco.findFirst({ where: { id: bancoId, equipe_id: equipeId } })
   if (!banco) return []
 
-  const lancamentos = await prisma.lancamentoFinanceiro.findMany({
-    where: { equipe_id: equipeId, banco_id: bancoId, saldo_atual: { not: null } },
-    orderBy: { dt_pagamento: 'asc' },
-    select: { id: true, descricao: true, tipo: true, valor: true, dt_pagamento: true },
-  })
+  const [lancamentos, investimentos] = await Promise.all([
+    prisma.lancamentoFinanceiro.findMany({
+      where: { equipe_id: equipeId, banco_id: bancoId, saldo_atual: { not: null } },
+      orderBy: { dt_pagamento: 'asc' },
+      select: { id: true, descricao: true, tipo: true, valor: true, dt_pagamento: true },
+    }),
+    prisma.investimento.findMany({
+      where: { equipe_id: equipeId, banco_id: bancoId },
+      orderBy: { dt_movimento: 'asc' },
+      select: { id: true, descricao: true, tipo: true, valor: true, dt_movimento: true },
+    }),
+  ])
+
+  // Junta lançamentos reais (que movimentam o saldo do banco) e movimentos de
+  // investimento vinculados a este banco (que NÃO movimentam o saldo — ver
+  // docstring do model Investimento) em uma única linha do tempo, por data.
+  // Os de investimento só "marcam presença" no saldo corrido do banco naquele
+  // momento (saldo_anterior = saldo_atual), para dar contexto de controle.
+  type Evento =
+    | { origem: 'LANCAMENTO'; id: string; descricao: string; tipo: 'RECEITA' | 'DESPESA'; valor: number; data: Date | null }
+    | { origem: 'INVESTIMENTO'; id: string; descricao: string; tipo: 'APORTE' | 'RESGATE'; valor: number; data: Date | null }
+
+  const eventos: Evento[] = [
+    ...lancamentos.map(l => ({ origem: 'LANCAMENTO' as const, id: l.id, descricao: l.descricao, tipo: l.tipo, valor: Number(l.valor), data: l.dt_pagamento }),
+    ),
+    ...investimentos.map(i => ({ origem: 'INVESTIMENTO' as const, id: i.id, descricao: i.descricao, tipo: i.tipo, valor: Number(i.valor), data: i.dt_movimento }),
+    ),
+  ].sort((a, b) => (a.data?.getTime() ?? 0) - (b.data?.getTime() ?? 0))
 
   let saldoCorrido = Number(banco.saldo_inicial)
-  const comSaldo = lancamentos.map(l => {
-    const valor = Number(l.valor)
-    const saldo_anterior = saldoCorrido
-    saldoCorrido = Math.round((saldoCorrido + (l.tipo === 'RECEITA' ? valor : -valor)) * 100) / 100
-    return { ...l, valor, saldo_anterior, saldo_atual: saldoCorrido }
+  const comSaldo = eventos.map(e => {
+    if (e.origem === 'LANCAMENTO') {
+      const saldo_anterior = saldoCorrido
+      saldoCorrido = Math.round((saldoCorrido + (e.tipo === 'RECEITA' ? e.valor : -e.valor)) * 100) / 100
+      return { id: e.id, descricao: e.descricao, tipo: e.tipo, origem: e.origem, valor: e.valor, dt_pagamento: e.data, saldo_anterior, saldo_atual: saldoCorrido }
+    }
+    return { id: e.id, descricao: e.descricao, tipo: e.tipo, origem: e.origem, valor: e.valor, dt_pagamento: e.data, saldo_anterior: saldoCorrido, saldo_atual: saldoCorrido }
   })
 
   if (filtros?.dataInicio && filtros?.dataFim) {
@@ -856,11 +881,21 @@ export async function criarInvestimento(formData: FormData): Promise<ActionResul
     if (!descricao) return { success: false, error: 'Descrição é obrigatória.' }
     if (isNaN(valor) || valor <= 0) return { success: false, error: 'Valor inválido.' }
 
+    let saldoAnteriorBanco: number | null = null
+    let saldoAtualBanco: number | null = null
+
     if (banco_id) {
       // Vinculado a um banco: o saldo que importa é o respectivo daquele
       // banco, não o total misturado com outros bancos/sem vínculo.
       const erroBanco = await validarInvestimentoBanco(equipeId, banco_id, tipo, valor)
       if (erroBanco) return { success: false, error: erroBanco }
+
+      // Vincular a um banco não move o saldo_atual dele (ver docstring do
+      // model Investimento) — então saldo_anterior e saldo_atual aqui são o
+      // mesmo valor: só um "retrato" do saldo do banco no momento do
+      // movimento, para aparecer no extrato dele.
+      const banco = await prisma.banco.findFirst({ where: { id: banco_id, equipe_id: equipeId } })
+      saldoAnteriorBanco = saldoAtualBanco = banco ? Number(banco.saldo_atual) : null
     } else if (tipo === 'RESGATE') {
       const saldoAtual = await getSaldoInvestimentos(equipeId)
       if (valor > saldoAtual) {
@@ -869,13 +904,24 @@ export async function criarInvestimento(formData: FormData): Promise<ActionResul
     }
 
     const investimento = await prisma.investimento.create({
-      data: { equipe_id: equipeId, tipo, descricao, valor, dt_movimento, numero_documento, banco_id }
+      data: {
+        equipe_id: equipeId, tipo, descricao, valor, dt_movimento, numero_documento, banco_id,
+        saldo_anterior: saldoAnteriorBanco, saldo_atual: saldoAtualBanco,
+      }
     })
 
     revalidatePath(`/equipe/${equipeId}/financeiro/investimentos`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
     revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
-    return { success: true, data: { ...investimento, valor: Number(investimento.valor) } }
+    return {
+      success: true,
+      data: {
+        ...investimento,
+        valor: Number(investimento.valor),
+        saldo_anterior: investimento.saldo_anterior !== null ? Number(investimento.saldo_anterior) : null,
+        saldo_atual: investimento.saldo_atual !== null ? Number(investimento.saldo_atual) : null,
+      }
+    }
   } catch {
     return { success: false, error: 'Erro ao criar movimento de investimento.' }
   }
@@ -907,9 +953,15 @@ export async function editarInvestimento(formData: FormData): Promise<ActionResu
     const existente = await prisma.investimento.findFirst({ where: { id, equipe_id: equipeId } })
     if (!existente) return { success: false, error: 'Movimento não encontrado.' }
 
+    let saldoAnteriorBanco: number | null = null
+    let saldoAtualBanco: number | null = null
+
     if (banco_id) {
       const erroBanco = await validarInvestimentoBanco(equipeId, banco_id, tipo, valor, id)
       if (erroBanco) return { success: false, error: erroBanco }
+
+      const banco = await prisma.banco.findFirst({ where: { id: banco_id, equipe_id: equipeId } })
+      saldoAnteriorBanco = saldoAtualBanco = banco ? Number(banco.saldo_atual) : null
     }
 
     if (tipo === 'RESGATE') {
@@ -921,13 +973,24 @@ export async function editarInvestimento(formData: FormData): Promise<ActionResu
 
     const atualizado = await prisma.investimento.update({
       where: { id },
-      data: { tipo, descricao, valor, dt_movimento, numero_documento, banco_id }
+      data: {
+        tipo, descricao, valor, dt_movimento, numero_documento, banco_id,
+        saldo_anterior: saldoAnteriorBanco, saldo_atual: saldoAtualBanco,
+      }
     })
 
     revalidatePath(`/equipe/${equipeId}/financeiro/investimentos`)
     revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
     revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
-    return { success: true, data: { ...atualizado, valor: Number(atualizado.valor) } }
+    return {
+      success: true,
+      data: {
+        ...atualizado,
+        valor: Number(atualizado.valor),
+        saldo_anterior: atualizado.saldo_anterior !== null ? Number(atualizado.saldo_anterior) : null,
+        saldo_atual: atualizado.saldo_atual !== null ? Number(atualizado.saldo_atual) : null,
+      }
+    }
   } catch {
     return { success: false, error: 'Erro ao editar movimento de investimento.' }
   }
@@ -965,6 +1028,77 @@ export async function excluirInvestimento(id: string, equipeId: string): Promise
     return { success: true, data: undefined }
   } catch {
     return { success: false, error: 'Erro ao excluir movimento de investimento.' }
+  }
+}
+
+/** Transfere uma conta a pagar já quitada (status PAGO, DESPESA) para o
+ * ledger de investimentos como um APORTE — usado quando algo foi registrado
+ * (e pago) como despesa antes de o módulo de investimentos existir, mas na
+ * verdade era dinheiro aplicado, não gasto.
+ *
+ * Como investimento vinculado a um banco não move o saldo_atual dele (ver
+ * docstring do model Investimento), e esta despesa JÁ havia reduzido esse
+ * saldo quando foi paga, a transferência estorna essa redução (o dinheiro
+ * nunca "saiu de verdade") e move o lançamento original — data, saldo
+ * anterior/atual, descrição e valor — para o novo registro de investimento,
+ * removendo-o de contas a pagar para não contar o mesmo valor duas vezes. */
+export async function importarContaPagaComoInvestimento(
+  lancamentoId: string,
+  equipeId: string,
+): Promise<ActionResult<import('@/types').Investimento>> {
+  try {
+    const usuario = await getUsuarioLogado()
+    if (!usuario) return { success: false, error: 'Usuário não encontrado.' }
+    if (!(await podeAcessarEquipe(usuario, equipeId)) || !podeEditarLancamentos(usuario)) {
+      return { success: false, error: 'Sem acesso a este cliente.' }
+    }
+
+    const lancamento = await prisma.lancamentoFinanceiro.findFirst({
+      where: { id: lancamentoId, equipe_id: equipeId },
+      include: { parciais: { select: { valor: true } } },
+    })
+    if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
+    if (lancamento.tipo !== 'DESPESA' || lancamento.status !== 'PAGO') {
+      return { success: false, error: 'Só é possível importar uma conta a pagar já quitada.' }
+    }
+
+    const investimento = await prisma.$transaction(async (tx) => {
+      await reverterSaldoBancoDoLancamento(tx, lancamento)
+      await tx.anexoFinanceiro.deleteMany({ where: { lancamento_id: lancamentoId } })
+
+      const criado = await tx.investimento.create({
+        data: {
+          equipe_id: equipeId,
+          banco_id: lancamento.banco_id,
+          tipo: 'APORTE',
+          descricao: lancamento.descricao,
+          valor: lancamento.valor,
+          dt_movimento: lancamento.dt_pagamento ?? lancamento.dt_vencimento,
+          numero_documento: lancamento.numero_documento,
+          saldo_anterior: lancamento.saldo_anterior,
+          saldo_atual: lancamento.saldo_atual,
+        },
+      })
+
+      await tx.lancamentoFinanceiro.delete({ where: { id: lancamentoId } })
+      return criado
+    })
+
+    revalidatePath(`/equipe/${equipeId}/financeiro/investimentos`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/balancete`)
+    revalidatePath(`/equipe/${equipeId}/financeiro/bancos`)
+    return {
+      success: true,
+      data: {
+        ...investimento,
+        valor: Number(investimento.valor),
+        saldo_anterior: investimento.saldo_anterior !== null ? Number(investimento.saldo_anterior) : null,
+        saldo_atual: investimento.saldo_atual !== null ? Number(investimento.saldo_atual) : null,
+      }
+    }
+  } catch {
+    return { success: false, error: 'Erro ao importar conta a pagar para investimento.' }
   }
 }
 
@@ -1216,28 +1350,40 @@ export async function pagarLancamento(id: string, dt_pagamento: string, equipeId
       include: { parciais: { select: { valor: true } } },
     })
     if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
+    if (lancamento.status !== 'PENDENTE') {
+      return { success: false, error: 'Este lançamento já foi pago.' }
+    }
 
     const jaPago = lancamento.parciais.reduce((s, p) => s + Number(p.valor), 0)
     const restante = Math.round((Number(lancamento.valor) - jaPago) * 100) / 100
 
-    if (lancamento.banco_id && restante > 0) {
-      await prisma.$transaction(async (tx) => {
-        const { saldoAnterior, saldoAtual } = await movimentarSaldoBanco(tx, lancamento.banco_id!, lancamento.tipo, restante, 1)
+    // Reivindica o lançamento de forma atômica (UPDATE condicionado a ele
+    // ainda estar PENDENTE) ANTES de mexer no saldo do banco. Isso impede que
+    // um clique duplo — ou duas requisições concorrentes — apliquem o
+    // pagamento duas vezes: a segunda chamada encontra 0 linhas aqui e é
+    // rejeitada sem nunca tocar no saldo do banco nem duplicar a recorrência.
+    const jaProcessado = await prisma.$transaction(async (tx) => {
+      const claim = await tx.lancamentoFinanceiro.updateMany({
+        where: { id, equipe_id: equipeId, status: 'PENDENTE' },
+        data: { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) },
+      })
+      if (claim.count === 0) return true
+
+      if (lancamento.banco_id && restante > 0) {
+        const { saldoAnterior, saldoAtual } = await movimentarSaldoBanco(tx, lancamento.banco_id, lancamento.tipo, restante, 1)
         await tx.lancamentoFinanceiro.update({
           where: { id },
           data: {
-            status: 'PAGO',
-            dt_pagamento: new Date(dt_pagamento),
             saldo_anterior: lancamento.saldo_anterior ?? saldoAnterior,
             saldo_atual: saldoAtual,
           }
         })
-      })
-    } else {
-      await prisma.lancamentoFinanceiro.update({
-        where: { id },
-        data: { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) }
-      })
+      }
+      return false
+    })
+
+    if (jaProcessado) {
+      return { success: false, error: 'Este lançamento já foi pago.' }
     }
 
     if (lancamento.recorrencia !== 'NAO') {
@@ -1303,23 +1449,28 @@ export async function estornarPagamento(id: string, equipeId: string): Promise<A
     const jaPago = lancamento.parciais.reduce((s, p) => s + Number(p.valor), 0)
     const restante = Math.round((Number(lancamento.valor) - jaPago) * 100) / 100
 
-    if (lancamento.banco_id && restante > 0) {
-      await prisma.$transaction(async (tx) => {
-        const { saldoAtual } = await movimentarSaldoBanco(tx, lancamento.banco_id!, lancamento.tipo, restante, -1)
-        await tx.lancamentoFinanceiro.update({
-          where: { id },
-          data: {
-            status: 'PENDENTE',
-            dt_pagamento: null,
-            ...(jaPago > 0 ? { saldo_atual: saldoAtual } : { saldo_anterior: null, saldo_atual: null }),
-          },
-        })
-      })
-    } else {
-      await prisma.lancamentoFinanceiro.update({
-        where: { id },
+    // Mesma trava atômica de pagarLancamento: reivindica o estorno condicionado
+    // ao status ainda ser PAGO, antes de mexer no saldo do banco — evita um
+    // clique duplo estornando (e devolvendo o dinheiro) duas vezes.
+    const jaProcessado = await prisma.$transaction(async (tx) => {
+      const claim = await tx.lancamentoFinanceiro.updateMany({
+        where: { id, equipe_id: equipeId, status: 'PAGO' },
         data: { status: 'PENDENTE', dt_pagamento: null },
       })
+      if (claim.count === 0) return true
+
+      if (lancamento.banco_id && restante > 0) {
+        const { saldoAtual } = await movimentarSaldoBanco(tx, lancamento.banco_id, lancamento.tipo, restante, -1)
+        await tx.lancamentoFinanceiro.update({
+          where: { id },
+          data: jaPago > 0 ? { saldo_atual: saldoAtual } : { saldo_anterior: null, saldo_atual: null },
+        })
+      }
+      return false
+    })
+
+    if (jaProcessado) {
+      return { success: false, error: 'Este lançamento já foi estornado.' }
     }
 
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
@@ -1353,46 +1504,41 @@ export async function registrarPagamentoParcial(
 
     const lancamento = await prisma.lancamentoFinanceiro.findFirst({
       where: { id: lancamentoId, equipe_id: equipeId },
-      include: { parciais: true },
     })
     if (!lancamento) return { success: false, error: 'Lançamento não encontrado.' }
     if (lancamento.status === 'CANCELADO') return { success: false, error: 'Lançamento cancelado não aceita parciais.' }
     if (lancamento.status === 'PAGO') return { success: false, error: 'Lançamento já está quitado.' }
 
     const total = Number(lancamento.valor)
-    const jaPago = lancamento.parciais.reduce((s, p) => s + Number(p.valor), 0)
-    const restante = Math.round((total - jaPago) * 100) / 100
     const valorParcial = Math.round(valor * 100) / 100
 
-    if (valorParcial > restante) {
-      return { success: false, error: `O parcial (R$ ${valorParcial.toFixed(2)}) ultrapassa o saldo restante (R$ ${restante.toFixed(2)}).` }
-    }
+    // Tudo abaixo roda dentro de uma transação que começa travando a linha do
+    // lançamento (SELECT ... FOR UPDATE) e refazendo os cálculos de restante
+    // com dados frescos lidos sob a trava — isso impede que duas requisições
+    // concorrentes (duplo clique) somem parciais sobre o mesmo "restante"
+    // desatualizado (estourando o valor total) ou disparem a quitação e a
+    // criação da próxima recorrência duas vezes.
+    const resultado = await prisma.$transaction(async (tx) => {
+      const linhas = await tx.$queryRaw<{ status: string; saldo_anterior: unknown }[]>`
+        SELECT status, saldo_anterior FROM lancamento_financeiro WHERE id = ${lancamentoId} FOR UPDATE
+      `
+      const linha = linhas[0]
+      if (!linha) return { erro: 'Lançamento não encontrado.' }
+      if (linha.status === 'CANCELADO') return { erro: 'Lançamento cancelado não aceita parciais.' }
+      if (linha.status === 'PAGO') return { erro: 'Lançamento já está quitado.' }
 
-    const novoTotal = Math.round((jaPago + valorParcial) * 100) / 100
-    const quitaAgora = novoTotal >= total
+      const parciaisAtuais = await tx.pagamentoParcial.findMany({ where: { lancamento_id: lancamentoId }, select: { valor: true } })
+      const jaPago = parciaisAtuais.reduce((s, p) => s + Number(p.valor), 0)
+      const restante = Math.round((total - jaPago) * 100) / 100
 
-    if (lancamento.banco_id) {
-      await prisma.$transaction(async (tx) => {
-        const { saldoAnterior, saldoAtual } = await movimentarSaldoBanco(tx, lancamento.banco_id!, lancamento.tipo, valorParcial, 1)
-        await tx.pagamentoParcial.create({
-          data: {
-            lancamento_id: lancamentoId,
-            valor: valorParcial,
-            dt_pagamento: new Date(dt_pagamento),
-            observacao: observacao?.trim() || null,
-          },
-        })
-        await tx.lancamentoFinanceiro.update({
-          where: { id: lancamentoId },
-          data: {
-            saldo_anterior: lancamento.saldo_anterior ?? saldoAnterior,
-            saldo_atual: saldoAtual,
-            ...(quitaAgora ? { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) } : {}),
-          },
-        })
-      })
-    } else {
-      await prisma.pagamentoParcial.create({
+      if (valorParcial > restante) {
+        return { erro: `O parcial (R$ ${valorParcial.toFixed(2)}) ultrapassa o saldo restante (R$ ${restante.toFixed(2)}).` }
+      }
+
+      const novoTotal = Math.round((jaPago + valorParcial) * 100) / 100
+      const quitaAgora = novoTotal >= total
+
+      await tx.pagamentoParcial.create({
         data: {
           lancamento_id: lancamentoId,
           valor: valorParcial,
@@ -1401,23 +1547,32 @@ export async function registrarPagamentoParcial(
         },
       })
 
-      if (quitaAgora) {
-        await prisma.lancamentoFinanceiro.update({
+      if (lancamento.banco_id) {
+        const saldoAnteriorExistente = linha.saldo_anterior !== null ? Number(linha.saldo_anterior) : null
+        const { saldoAnterior, saldoAtual } = await movimentarSaldoBanco(tx, lancamento.banco_id, lancamento.tipo, valorParcial, 1)
+        await tx.lancamentoFinanceiro.update({
+          where: { id: lancamentoId },
+          data: {
+            saldo_anterior: saldoAnteriorExistente ?? saldoAnterior,
+            saldo_atual: saldoAtual,
+            ...(quitaAgora ? { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) } : {}),
+          },
+        })
+      } else if (quitaAgora) {
+        await tx.lancamentoFinanceiro.update({
           where: { id: lancamentoId },
           data: { status: 'PAGO', dt_pagamento: new Date(dt_pagamento) },
         })
       }
-    }
 
-    if (quitaAgora) {
-      if (lancamento.recorrencia !== 'NAO') {
+      if (quitaAgora && lancamento.recorrencia !== 'NAO') {
         const baseDate = new Date(lancamento.dt_vencimento)
         let proxData: Date
         if (lancamento.recorrencia === 'DIARIAMENTE') { proxData = new Date(baseDate); proxData.setDate(proxData.getDate() + 1) }
         else if (lancamento.recorrencia === 'SEMANALMENTE') { proxData = new Date(baseDate); proxData.setDate(proxData.getDate() + 7) }
         else { proxData = new Date(baseDate); proxData.setMonth(proxData.getMonth() + 1) }
 
-        await prisma.lancamentoFinanceiro.create({
+        await tx.lancamentoFinanceiro.create({
           data: {
             equipe_id: lancamento.equipe_id,
             tipo: lancamento.tipo,
@@ -1434,7 +1589,11 @@ export async function registrarPagamentoParcial(
           }
         })
       }
-    }
+
+      return { erro: null }
+    })
+
+    if (resultado.erro) return { success: false, error: resultado.erro }
 
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-pagar`)
     revalidatePath(`/equipe/${equipeId}/financeiro/contas-a-receber`)

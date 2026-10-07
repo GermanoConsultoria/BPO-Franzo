@@ -124,6 +124,8 @@ export type Investimento = {
   valor: number
   dt_movimento: Date | string
   numero_documento: string | null
+  saldo_anterior: number | null
+  saldo_atual: number | null
   dt_insert: Date | string
   dt_update: Date | string
 }
@@ -187,11 +189,15 @@ export type PagamentoParcial = {
   dt_insert: Date | string
 }
 
-/** Linha do extrato de um banco — lançamento que já movimentou o saldo. */
+/** Linha do extrato de um banco — lançamento que já movimentou o saldo, ou
+ * movimento de investimento vinculado a este banco (que não move o saldo,
+ * mas aparece na linha do tempo com o saldo do banco naquele momento, para
+ * controle). `origem` distingue as duas procedências. */
 export type MovimentoExtrato = {
   id: string
   descricao: string
-  tipo: TipoLancamento
+  tipo: TipoLancamento | TipoInvestimento
+  origem: 'LANCAMENTO' | 'INVESTIMENTO'
   valor: number
   dt_pagamento: Date | string | null
   saldo_anterior: number | null

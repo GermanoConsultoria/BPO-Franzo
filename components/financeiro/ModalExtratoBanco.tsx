@@ -175,23 +175,32 @@ export default function ModalExtratoBanco({ equipeId, nomeCliente, banco, planoC
                     <tr>
                       <th className="text-left px-3 py-2">Data</th>
                       <th className="text-left px-3 py-2">Descrição</th>
+                      <th className="text-center px-3 py-2">Origem</th>
                       <th className="text-right px-3 py-2">Valor</th>
                       <th className="text-right px-3 py-2">Saldo Ant.</th>
                       <th className="text-right px-3 py-2">Saldo Atual</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {movimentos.map(m => (
-                      <tr key={m.id} className="hover:bg-background/50 transition-colors">
-                        <td className="px-3 py-2 text-gray-300 whitespace-nowrap">{m.dt_pagamento ? formatarData(m.dt_pagamento) : '—'}</td>
-                        <td className="px-3 py-2 text-foreground max-w-[160px] truncate" title={m.descricao}>{m.descricao}</td>
-                        <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${m.tipo === 'DESPESA' ? 'text-red-400' : 'text-emerald-400'}`}>
-                          {m.tipo === 'DESPESA' ? '-' : '+'} {formatarMoeda(m.valor)}
-                        </td>
-                        <td className="px-3 py-2 text-right text-gray-400 whitespace-nowrap">{m.saldo_anterior !== null ? formatarMoeda(m.saldo_anterior) : '—'}</td>
-                        <td className="px-3 py-2 text-right text-gray-300 font-medium whitespace-nowrap">{m.saldo_atual !== null ? formatarMoeda(m.saldo_atual) : '—'}</td>
-                      </tr>
-                    ))}
+                    {movimentos.map(m => {
+                      const saida = m.tipo === 'DESPESA' || m.tipo === 'RESGATE'
+                      return (
+                        <tr key={m.id} className={`hover:bg-background/50 transition-colors ${m.origem === 'INVESTIMENTO' ? 'bg-yellow-500/5' : ''}`}>
+                          <td className="px-3 py-2 text-gray-300 whitespace-nowrap">{m.dt_pagamento ? formatarData(m.dt_pagamento) : '—'}</td>
+                          <td className="px-3 py-2 text-foreground max-w-[160px] truncate" title={m.descricao}>{m.descricao}</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full border text-[10px] font-semibold ${m.origem === 'INVESTIMENTO' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}>
+                              {m.origem === 'INVESTIMENTO' ? 'Investimento' : 'Lançamento'}
+                            </span>
+                          </td>
+                          <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${saida ? 'text-red-400' : 'text-emerald-400'}`}>
+                            {saida ? '-' : '+'} {formatarMoeda(m.valor)}
+                          </td>
+                          <td className="px-3 py-2 text-right text-gray-400 whitespace-nowrap">{m.saldo_anterior !== null ? formatarMoeda(m.saldo_anterior) : '—'}</td>
+                          <td className="px-3 py-2 text-right text-gray-300 font-medium whitespace-nowrap">{m.saldo_atual !== null ? formatarMoeda(m.saldo_atual) : '—'}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

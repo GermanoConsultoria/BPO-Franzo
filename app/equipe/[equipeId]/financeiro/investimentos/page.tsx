@@ -23,7 +23,12 @@ export default async function InvestimentosPage({ params }: { params: Promise<{ 
     }),
   ])
 
-  const investimentosSerializados = investimentos.map(i => ({ ...i, valor: Number(i.valor) }))
+  const investimentosSerializados = investimentos.map(i => ({
+    ...i,
+    valor: Number(i.valor),
+    saldo_anterior: i.saldo_anterior !== null ? Number(i.saldo_anterior) : null,
+    saldo_atual: i.saldo_atual !== null ? Number(i.saldo_atual) : null,
+  }))
   const bancosSerializados = bancos.map(b => ({ ...b, saldo_inicial: Number(b.saldo_inicial), saldo_atual: Number(b.saldo_atual) }))
 
   return (
