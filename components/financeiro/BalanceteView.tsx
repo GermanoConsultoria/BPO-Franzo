@@ -8,9 +8,12 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid
 } from 'recharts'
+import { toast } from 'sonner'
 import ModalPreviewPdf from '@/components/ModalPreviewPdf'
 import { gerarPdfContaResumo, gerarPdfContaDetalhado } from '@/lib/pdf-balancete-conta'
+import { gerarXlsxContaResumo, gerarXlsxContaDetalhado } from '@/lib/xlsx-balancete-conta'
 import { desenharCabecalhoPdf, INICIO_CONTEUDO_PDF } from '@/lib/pdf-cabecalho'
+import { baixarArquivo } from '@/lib/baixar-arquivo'
 import type { Balancete, ContratoEncerrando } from '@/types'
 
 const COR_EXPORT = {
@@ -553,7 +556,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
           ref={exportGeralRef}
           style={{ position: 'fixed', top: 0, left: '-10000px', width: 680, padding: 16, backgroundColor: COR_EXPORT.fundo }}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
             <CardExport label="Receitas previstas" valor={b.receitas} cor={COR_EXPORT.emerald} />
             <CardExport label="Despesas previstas" valor={b.despesas} cor={COR_EXPORT.red} />
             <CardExport label={b.lucro >= 0 ? 'Lucro previsto' : 'Prejuízo previsto'} valor={Math.abs(b.lucro)} cor={b.lucro >= 0 ? COR_EXPORT.emerald : COR_EXPORT.red} />
@@ -683,17 +686,42 @@ function TabelaConta({
   labelPeriodo: string
 }) {
   const [contaAberta, setContaAberta] = useState<string | null>(null)
-  const [mostrarEscolhaPdf, setMostrarEscolhaPdf] = useState(false)
+  const [etapaExport, setEtapaExport] = useState<1 | 2 | null>(null)
+  const [formatoExport, setFormatoExport] = useState<'resumida' | 'detalhada' | null>(null)
+  const [gerandoXlsx, setGerandoXlsx] = useState(false)
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
 
-  function exportarResumida() {
-    setPdfBlob(gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf }))
-    setMostrarEscolhaPdf(false)
+  function fecharExport() {
+    setEtapaExport(null)
+    setFormatoExport(null)
   }
 
-  function exportarDetalhada() {
-    setPdfBlob(gerarPdfContaDetalhado({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf, lancamentosPorConta }))
-    setMostrarEscolhaPdf(false)
+  function escolherFormato(formato: 'resumida' | 'detalhada') {
+    setFormatoExport(formato)
+    setEtapaExport(2)
+  }
+
+  function exportarPdf() {
+    const blob = formatoExport === 'detalhada'
+      ? gerarPdfContaDetalhado({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf, lancamentosPorConta })
+      : gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf })
+    setPdfBlob(blob)
+    fecharExport()
+  }
+
+  async function exportarXlsx() {
+    setGerandoXlsx(true)
+    try {
+      const blob = formatoExport === 'detalhada'
+        ? await gerarXlsxContaDetalhado({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf, lancamentosPorConta })
+        : await gerarXlsxContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf })
+      baixarArquivo(blob, `${titulo}.xlsx`)
+      fecharExport()
+    } catch {
+      toast.error('Erro ao gerar XLSX.')
+    } finally {
+      setGerandoXlsx(false)
+    }
   }
 
   const statusLabel: Record<string, { label: string; cor: string }> = {
@@ -708,9 +736,9 @@ function TabelaConta({
         <h2 className="text-sm font-semibold text-gray-300">{titulo}</h2>
         {itens.length > 0 && (
           <button
-            onClick={() => setMostrarEscolhaPdf(true)}
+            onClick={() => setEtapaExport(1)}
             className="p-1.5 text-gray-400 hover:text-foreground hover:bg-surface-highlight rounded-lg transition-colors"
-            title="Exportar PDF"
+            title="Exportar"
           >
             <FileDown size={15} />
           </button>
@@ -795,36 +823,80 @@ function TabelaConta({
         </table>
       )}
 
-      {/* Popup: escolher Resumida ou Detalhada */}
-      {mostrarEscolhaPdf && (
+      {/* Popup de exportação em 2 etapas: 1) Resumida/Detalhada  2) PDF/XLSX */}
+      {etapaExport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-surface border border-border rounded-xl p-6 w-full max-w-sm shadow-2xl space-y-4">
             <div>
-              <h2 className="text-lg font-bold">Exportar PDF</h2>
-              <p className="text-sm text-gray-400 mt-1">{titulo} — como deseja exportar?</p>
+              <h2 className="text-lg font-bold">Exportar</h2>
+              <p className="text-sm text-gray-400 mt-1">
+                {etapaExport === 1 ? `${titulo} — como deseja exportar?` : `${titulo} — em qual formato?`}
+              </p>
             </div>
-            <div className="space-y-2">
+
+            {etapaExport === 1 && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => escolherFormato('resumida')}
+                  className="w-full py-2.5 rounded-lg bg-surface border border-border hover:bg-surface-highlight text-sm font-medium transition-colors text-left px-4"
+                >
+                  <div className="font-medium text-foreground">Resumida</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Uma tabela com o total e a % de cada conta, igual à tela.</div>
+                </button>
+                <button
+                  onClick={() => escolherFormato('detalhada')}
+                  className="w-full py-2.5 rounded-lg bg-surface border border-border hover:bg-surface-highlight text-sm font-medium transition-colors text-left px-4"
+                >
+                  <div className="font-medium text-foreground">Detalhada</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Uma tabela por conta, com todos os lançamentos (como ao abrir cada conta).</div>
+                </button>
+              </div>
+            )}
+
+            {etapaExport === 2 && (
+              <div className="space-y-2">
+                <button
+                  onClick={exportarPdf}
+                  className="w-full py-2.5 rounded-lg bg-surface border border-border hover:bg-surface-highlight text-sm font-medium transition-colors text-left px-4"
+                >
+                  <div className="font-medium text-foreground">PDF</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Abre uma pré-visualização para imprimir ou salvar.</div>
+                </button>
+                <button
+                  onClick={exportarXlsx}
+                  disabled={gerandoXlsx}
+                  className="w-full py-2.5 rounded-lg bg-surface border border-border hover:bg-surface-highlight text-sm font-medium transition-colors text-left px-4 disabled:opacity-50"
+                >
+                  <div className="font-medium text-foreground">{gerandoXlsx ? 'Gerando XLSX...' : 'XLSX'}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Baixa uma planilha do Excel com os dados da tabela.</div>
+                </button>
+              </div>
+            )}
+
+            {/* Indicador de etapa */}
+            <div className="flex items-center justify-center gap-1.5">
+              <span className={`h-1.5 rounded-full transition-all ${etapaExport === 1 ? 'w-4 bg-indigo-500' : 'w-1.5 bg-gray-600'}`} />
+              <span className={`h-1.5 rounded-full transition-all ${etapaExport === 2 ? 'w-4 bg-indigo-500' : 'w-1.5 bg-gray-600'}`} />
+            </div>
+
+            <div className="flex gap-2">
+              {etapaExport === 2 && (
+                <button
+                  onClick={() => setEtapaExport(1)}
+                  disabled={gerandoXlsx}
+                  className="flex-1 py-2 rounded-lg border border-border text-sm text-gray-400 hover:text-foreground hover:bg-surface-highlight transition-colors disabled:opacity-50"
+                >
+                  Voltar
+                </button>
+              )}
               <button
-                onClick={exportarResumida}
-                className="w-full py-2.5 rounded-lg bg-surface border border-border hover:bg-surface-highlight text-sm font-medium transition-colors text-left px-4"
+                onClick={fecharExport}
+                disabled={gerandoXlsx}
+                className="flex-1 py-2 rounded-lg border border-border text-sm text-gray-400 hover:text-foreground hover:bg-surface-highlight transition-colors disabled:opacity-50"
               >
-                <div className="font-medium text-foreground">Resumida</div>
-                <div className="text-xs text-gray-500 mt-0.5">Uma tabela com o total e a % de cada conta, igual à tela.</div>
-              </button>
-              <button
-                onClick={exportarDetalhada}
-                className="w-full py-2.5 rounded-lg bg-surface border border-border hover:bg-surface-highlight text-sm font-medium transition-colors text-left px-4"
-              >
-                <div className="font-medium text-foreground">Detalhada</div>
-                <div className="text-xs text-gray-500 mt-0.5">Uma tabela por conta, com todos os lançamentos (como ao abrir cada conta).</div>
+                Cancelar
               </button>
             </div>
-            <button
-              onClick={() => setMostrarEscolhaPdf(false)}
-              className="w-full py-2 rounded-lg border border-border text-sm text-gray-400 hover:text-foreground hover:bg-surface-highlight transition-colors"
-            >
-              Cancelar
-            </button>
           </div>
         </div>
       )}
