@@ -14,6 +14,7 @@ import { gerarPdfContaResumo, gerarPdfContaDetalhado } from '@/lib/pdf-balancete
 import { gerarXlsxContaResumo, gerarXlsxContaDetalhado } from '@/lib/xlsx-balancete-conta'
 import { desenharCabecalhoPdf, INICIO_CONTEUDO_PDF } from '@/lib/pdf-cabecalho'
 import { baixarArquivo } from '@/lib/baixar-arquivo'
+import { calcularMesesPeriodo, totalPorMes } from '@/lib/balancete-periodo'
 import type { Balancete, ContratoEncerrando } from '@/types'
 
 const COR_EXPORT = {
@@ -537,6 +538,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
           corPdf={[4, 120, 87]}
           lancamentosPorConta={b.lancamentos_por_conta}
           labelPeriodo={labelPeriodo}
+          modo={modo}
         />
         <TabelaConta
           titulo="Despesas por Conta"
@@ -547,6 +549,7 @@ export default function BalanceteView({ equipeId, nomeCliente, balancete, dataIn
           corPdf={[185, 28, 28]}
           lancamentosPorConta={b.lancamentos_por_conta}
           labelPeriodo={labelPeriodo}
+          modo={modo}
         />
       </div>
 
@@ -675,6 +678,7 @@ function TabelaConta({
   corPdf,
   lancamentosPorConta,
   labelPeriodo,
+  modo,
 }: {
   titulo: string
   nomeCliente: string
@@ -684,12 +688,16 @@ function TabelaConta({
   corPdf: [number, number, number]
   lancamentosPorConta: Record<string, { descricao: string; valor: number; status: string; dt_vencimento: Date }[]>
   labelPeriodo: string
+  modo: 'mes' | 'ano' | 'periodo'
 }) {
   const [contaAberta, setContaAberta] = useState<string | null>(null)
   const [etapaExport, setEtapaExport] = useState<1 | 2 | null>(null)
   const [formatoExport, setFormatoExport] = useState<'resumida' | 'detalhada' | null>(null)
   const [gerandoXlsx, setGerandoXlsx] = useState(false)
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
+
+  const meses = modo === 'periodo' ? calcularMesesPeriodo(lancamentosPorConta) : []
+  const mostrarMatriz = meses.length > 1
 
   function fecharExport() {
     setEtapaExport(null)
@@ -704,7 +712,7 @@ function TabelaConta({
   function exportarPdf() {
     const blob = formatoExport === 'detalhada'
       ? gerarPdfContaDetalhado({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf, lancamentosPorConta })
-      : gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf })
+      : gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf, meses, lancamentosPorConta })
     setPdfBlob(blob)
     fecharExport()
   }
@@ -714,7 +722,7 @@ function TabelaConta({
     try {
       const blob = formatoExport === 'detalhada'
         ? await gerarXlsxContaDetalhado({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf, lancamentosPorConta })
-        : await gerarXlsxContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf })
+        : await gerarXlsxContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque: corPdf, meses, lancamentosPorConta })
       baixarArquivo(blob, `${titulo}.xlsx`)
       fecharExport()
     } catch {
@@ -751,6 +759,9 @@ function TabelaConta({
           <thead className="text-gray-400 text-xs uppercase">
             <tr>
               <th className="text-left px-4 py-2">Conta</th>
+              {mostrarMatriz && meses.map(m => (
+                <th key={m.chave} className="text-right px-4 py-2">{m.label}</th>
+              ))}
               <th className="text-right px-4 py-2">Total</th>
               <th className="text-right px-4 py-2">%</th>
             </tr>
@@ -768,6 +779,11 @@ function TabelaConta({
                       <span className={`text-gray-500 transition-transform text-xs ${contaAberta === item.plano_contas_id ? 'rotate-90' : ''}`}>▶</span>
                       {item.nome}
                     </td>
+                    {mostrarMatriz && meses.map(m => (
+                      <td key={m.chave} className="px-4 py-2.5 text-right text-gray-400">
+                        {totalPorMes(lancamentosPorConta[item.plano_contas_id] ?? [], m.chave).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                    ))}
                     <td className={`px-4 py-2.5 text-right font-medium ${cor}`}>
                       {item.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </td>
@@ -778,7 +794,7 @@ function TabelaConta({
 
                   {contaAberta === item.plano_contas_id && (
                     <tr key={`${item.plano_contas_id}-detalhe`}>
-                      <td colSpan={3} className="px-0 py-0 bg-background/40">
+                      <td colSpan={mostrarMatriz ? 3 + meses.length : 3} className="px-0 py-0 bg-background/40">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-gray-500 uppercase border-b border-border">
@@ -814,6 +830,14 @@ function TabelaConta({
               ))}
             <tr className="border-t-2 border-border font-semibold">
               <td className="px-4 py-2.5 text-gray-300">Total</td>
+              {mostrarMatriz && meses.map(m => {
+                const totalMes = itens.reduce((s, item) => s + totalPorMes(lancamentosPorConta[item.plano_contas_id] ?? [], m.chave), 0)
+                return (
+                  <td key={m.chave} className="px-4 py-2.5 text-right text-gray-300">
+                    {totalMes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </td>
+                )
+              })}
               <td className={`px-4 py-2.5 text-right ${cor}`}>
                 {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </td>

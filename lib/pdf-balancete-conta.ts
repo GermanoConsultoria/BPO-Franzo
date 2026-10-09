@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
 import { desenharCabecalhoPdf, desenharRodapePdf, INICIO_CONTEUDO_PDF } from '@/lib/pdf-cabecalho'
+import { totalPorMes, type MesPeriodo } from '@/lib/balancete-periodo'
 
 interface ItemConta {
   plano_contas_id: string
@@ -36,34 +37,73 @@ interface ParamsBase {
   total: number
   labelPeriodo: string
   corDestaque: [number, number, number]
+  /** Quando há mais de um mês no período filtrado, quebra o total de cada conta por mês. */
+  meses?: MesPeriodo[]
+  lancamentosPorConta?: Record<string, LancamentoConta[]>
 }
 
-export function gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque }: ParamsBase): Blob {
+export function gerarPdfContaResumo({ titulo, nomeCliente, itens, total, labelPeriodo, corDestaque, meses, lancamentosPorConta }: ParamsBase): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   desenharCabecalhoPdf(doc, titulo, nomeCliente, labelPeriodo)
 
   const ordenados = [...itens].sort((a, b) => b.total - a.total)
-  const linhas = ordenados.map(item => [
-    item.nome,
-    formatarMoeda(item.total),
-    total > 0 ? `${((item.total / total) * 100).toFixed(1)}%` : '—',
-  ])
-  linhas.push(['Total', formatarMoeda(total), '100%'])
+  const usarMatriz = !!meses && meses.length > 1 && !!lancamentosPorConta
 
-  autoTable(doc, {
-    startY: INICIO_CONTEUDO_PDF,
-    head: [['Conta', 'Total', '%']],
-    body: linhas,
-    styles: { fontSize: 9, cellPadding: 2.5, textColor: 30 },
-    headStyles: { fillColor: corDestaque, textColor: 255, fontStyle: 'bold' },
-    columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
-    margin: { left: 14, right: 14 },
-    didParseCell: (data) => {
-      if (data.section === 'body' && data.row.index === linhas.length - 1) {
-        data.cell.styles.fontStyle = 'bold'
-      }
-    },
-  })
+  if (usarMatriz && meses && lancamentosPorConta) {
+    const linhas = ordenados.map(item => {
+      const lancamentos = lancamentosPorConta[item.plano_contas_id] ?? []
+      return [
+        item.nome,
+        ...meses.map(m => formatarMoeda(totalPorMes(lancamentos, m.chave))),
+        formatarMoeda(item.total),
+        total > 0 ? `${((item.total / total) * 100).toFixed(1)}%` : '—',
+      ]
+    })
+    const totalPorMesGeral = meses.map(m =>
+      ordenados.reduce((s, item) => s + totalPorMes(lancamentosPorConta[item.plano_contas_id] ?? [], m.chave), 0)
+    )
+    linhas.push(['Total', ...totalPorMesGeral.map(formatarMoeda), formatarMoeda(total), '100%'])
+
+    const colunasDireita: Record<number, { halign: 'right' }> = {}
+    for (let i = 1; i <= meses.length + 2; i++) colunasDireita[i] = { halign: 'right' }
+
+    autoTable(doc, {
+      startY: INICIO_CONTEUDO_PDF,
+      head: [['Conta', ...meses.map(m => m.label), 'Total', '%']],
+      body: linhas,
+      styles: { fontSize: 8, cellPadding: 2, textColor: 30 },
+      headStyles: { fillColor: corDestaque, textColor: 255, fontStyle: 'bold' },
+      columnStyles: colunasDireita,
+      margin: { left: 14, right: 14 },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.row.index === linhas.length - 1) {
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
+    })
+  } else {
+    const linhas = ordenados.map(item => [
+      item.nome,
+      formatarMoeda(item.total),
+      total > 0 ? `${((item.total / total) * 100).toFixed(1)}%` : '—',
+    ])
+    linhas.push(['Total', formatarMoeda(total), '100%'])
+
+    autoTable(doc, {
+      startY: INICIO_CONTEUDO_PDF,
+      head: [['Conta', 'Total', '%']],
+      body: linhas,
+      styles: { fontSize: 9, cellPadding: 2.5, textColor: 30 },
+      headStyles: { fillColor: corDestaque, textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
+      margin: { left: 14, right: 14 },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.row.index === linhas.length - 1) {
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
+    })
+  }
 
   desenharRodapePdf(doc)
   return doc.output('blob')
