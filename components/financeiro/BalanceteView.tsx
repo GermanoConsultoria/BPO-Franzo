@@ -696,7 +696,7 @@ function TabelaConta({
   const [gerandoXlsx, setGerandoXlsx] = useState(false)
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
 
-  const meses = modo === 'periodo' ? calcularMesesPeriodo(lancamentosPorConta) : []
+  const meses = modo === 'periodo' || modo === 'ano' ? calcularMesesPeriodo(lancamentosPorConta) : []
   const mostrarMatriz = meses.length > 1
 
   function fecharExport() {
